@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+*.log
+
+# estado e cache do updater
+.cache/
+
+# dados ao vivo gerados pelo updater (public/data/geo é estático e fica versionado)
+public/data/resultado.json
+public/data/historico.json
+public/data/municipios/

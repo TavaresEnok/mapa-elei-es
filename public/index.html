@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa da Apuração 2026</title>
+  <meta name="description" content="Acompanhe a apuração das eleições de 2026 em tempo real: presidente, governadores e senadores, estado por estado e município por município. Dados abertos do TSE.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <a class="pular" href="#mapa">Ir para o mapa</a>
+
+  <header class="topo">
+    <div class="marca">
+      <img src="img/favicon.svg" alt="" width="28" height="28">
+      <div>
+        <h1>Mapa da Apuração <span id="turno-rotulo">2026</span></h1>
+        <p class="fonte">Dados abertos do TSE · mapas do IBGE</p>
+      </div>
+    </div>
+    <div class="status" role="status" aria-live="polite">
+      <span class="ponto" id="ponto-status" aria-hidden="true"></span>
+      <span id="texto-status">Carregando…</span>
+    </div>
+  </header>
+
+  <section class="progresso" aria-label="Andamento da apuração">
+    <div class="progresso-rotulos">
+      <span id="progresso-titulo">Seções apuradas no Brasil</span>
+      <strong id="progresso-valor">—</strong>
+    </div>
+    <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progresso-barra"><span id="progresso-preenchimento"></span></div>
+  </section>
+
+  <nav class="controles" aria-label="Opções do mapa">
+    <div class="grupo" role="tablist" aria-label="Cargo">
+      <button role="tab" class="aba" data-cargo="presidente" aria-selected="true">Presidente</button>
+      <button role="tab" class="aba" data-cargo="governador" aria-selected="false">Governador</button>
+      <button role="tab" class="aba" data-cargo="senador" aria-selected="false">Senador</button>
+    </div>
+    <div class="grupo" role="group" aria-label="Nível do mapa">
+      <button class="aba" data-nivel="estados" aria-pressed="true">Estados</button>
+      <button class="aba" data-nivel="municipios" aria-pressed="false">Municípios</button>
+    </div>
+    <button class="botao-busca" id="abrir-busca" type="button">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span>Buscar cidade ou estado</span><kbd>Ctrl K</kbd>
+    </button>
+  </nav>
+
+  <main class="layout">
+    <section class="cartao mapa-cartao" aria-label="Mapa">
+      <div class="mapa-barra">
+        <button type="button" id="voltar" class="botao-leve" hidden>← Brasil</button>
+        <span id="mapa-titulo" class="mapa-titulo">Brasil</span>
+        <div class="zoom">
+          <button type="button" id="zoom-mais" class="botao-icone" aria-label="Aproximar">+</button>
+          <button type="button" id="zoom-menos" class="botao-icone" aria-label="Afastar">−</button>
+          <button type="button" id="zoom-reset" class="botao-icone" aria-label="Voltar ao mapa inteiro">⤢</button>
+        </div>
+      </div>
+      <div class="mapa-area" id="mapa">
+        <svg id="svg-mapa" role="img" aria-label="Mapa do Brasil colorido pelo candidato mais votado em cada local" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="dica" class="dica" role="tooltip" hidden></div>
+        <p id="mapa-aviso" class="mapa-aviso" hidden></p>
+      </div>
+      <div class="legenda" id="legenda" aria-label="Legenda"></div>
+    </section>
+
+    <aside class="cartao painel" id="painel" aria-live="polite" aria-label="Detalhes"></aside>
+  </main>
+
+  <section class="cartao grafico-cartao" aria-label="Evolução da apuração">
+    <h2>Evolução da apuração — presidente, Brasil</h2>
+    <div id="grafico"></div>
+  </section>
+
+  <footer class="rodape">
+    <p>Resultados: <a href="https://resultados.tse.jus.br/" rel="noopener">Tribunal Superior Eleitoral</a>. Malhas territoriais: <a href="https://www.ibge.gov.br/" rel="noopener">IBGE</a>. Os números são parciais enquanto a apuração não chegar a 100% das seções e podem mudar a qualquer momento; o resultado oficial é o do TSE.</p>
+  </footer>
+
+  <dialog id="busca" aria-label="Buscar">
+    <form method="dialog" class="busca-form" id="busca-form">
+      <input id="busca-campo" type="search" autocomplete="off" spellcheck="false" placeholder="Digite o nome de uma cidade ou estado" aria-label="Buscar cidade ou estado" aria-controls="busca-lista">
+      <ul id="busca-lista" role="listbox"></ul>
+      <p class="busca-dica">↑ ↓ para navegar · Enter para abrir · Esc para fechar</p>
+    </form>
+  </dialog>
+
+  <noscript><p class="sem-js">Este painel precisa de JavaScript para exibir o mapa.</p></noscript>
+</body>
+</html>
