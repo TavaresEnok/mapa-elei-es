@@ -1,0 +1,16 @@
+const fs = require('fs');
+const html = fs.readFileSync('index.html', 'utf8');
+console.log('Size:', (html.length/1024).toFixed(0), 'KB');
+console.log('SVG paths:', html.includes('M260.6,432.9'));
+console.log('State label:', html.includes('state-label'));
+console.log('Lula pct:', html.includes('pct-lula'));
+console.log('Region list:', html.includes('region-list'));
+console.log('Chart canvas:', html.includes('trend-chart'));
+console.log('Search modal:', html.includes('search-modal'));
+console.log('Timeline:', html.includes('timeline-bar'));
+const stateIds = html.match(/id="state-[A-Z]+"/g);
+console.log('State paths:', stateIds ? stateIds.length : 0);
+console.log('State IDs found:', stateIds ? stateIds.join(', ') : 'none');
+console.log('Has state chips:', html.includes('lula-chips'));
+console.log('Has zoom controls:', html.includes('zoom-ctl'));
+console.log('Complete HTML:', html.trimEnd().endsWith('</html>'));
