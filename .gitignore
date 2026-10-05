@@ -5,7 +5,6 @@ node_modules/
 # estado e cache do updater
 .cache/
 
-# dados ao vivo gerados pelo updater (public/data/geo é estático e fica versionado)
-public/data/resultado.json
-public/data/historico.json
-public/data/municipios/
+# dados gerados pelo updater (resultados, fotos, simulação); só a geometria do IBGE é versionada
+public/data/*
+!public/data/geo/

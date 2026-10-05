@@ -37,6 +37,7 @@ function unidadeDe(doc, cargo) {
       votos: int(c.vap),
       resultado: eleito ? 'eleito' : vaiAoSegundo ? 'segundo-turno' : null,
     };
+    if (/^\d+$/.test(String(c.sqcand || ''))) cand.sq = String(c.sqcand);   // chave da foto oficial
     if (/^anulad/.test(norm(c.dvt))) cand.anulado = true;
     candidatos.push(cand);
   }

@@ -29,7 +29,15 @@ export class Mapa {
       const p = s('path', { d: g.d, class: 'u', 'data-uf': uf });
       this.pathUf.set(uf, p); this.bboxUf.set(uf, g.bbox); gUf.append(p);
     }
-    svg.append(gMun, gUf);
+    // rótulos com a sigla de cada estado, no centroide
+    const gRot = s('g', { id: 'camada-rotulos', 'aria-hidden': 'true' });
+    for (const [uf, g] of Object.entries(geo.ufs)) {
+      if (!g.centro) continue;
+      const t = s('text', { x: g.centro[0], y: g.centro[1], class: 'rotulo', 'data-uf': uf });
+      t.textContent = uf;
+      gRot.append(t);
+    }
+    svg.append(gMun, gUf, gRot);
     this.gMun = gMun;
     this.aplicarVb();
     this.ligarEventos();
@@ -55,6 +63,7 @@ export class Mapa {
 
   selecionar(uf, mun) {
     this.ufSel = uf || null; this.munSel = mun || null;
+    this.svg.classList.toggle('com-foco', !!uf);
     for (const [codigo, el] of this.pathUf) {
       el.classList.toggle('fora', !!uf && codigo !== uf);
       el.classList.toggle('sel', codigo === uf && !mun);
@@ -80,6 +89,9 @@ export class Mapa {
   aplicarVb() {
     const { x, y, w, h } = this.vb;
     this.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+    // unidades do SVG por pixel de tela: mantém os rótulos com tamanho constante em qualquer zoom
+    const caixa = this.svg.getBoundingClientRect();
+    if (caixa.width && caixa.height) this.svg.style.setProperty('--u', Math.max(w / caixa.width, h / caixa.height));
   }
 
   irPara(alvo) {
@@ -182,7 +194,9 @@ export class Mapa {
   }
 }
 
+// Estilo inline (CSSOM) e não atributo: regras de CSS vencem atributos de apresentação do SVG.
+// A intensidade mistura a cor do partido com um tom neutro do tema (--papel), então funciona no claro e no escuro.
 function aplicarCor(el, c) {
-  if (c) { el.setAttribute('fill', c.cor); el.setAttribute('fill-opacity', c.opacidade); }
-  else { el.removeAttribute('fill'); el.removeAttribute('fill-opacity'); }
+  if (c) el.style.fill = `color-mix(in srgb, ${c.cor} ${Math.round(c.opacidade * 100)}%, var(--papel))`;
+  else el.style.removeProperty('fill');
 }

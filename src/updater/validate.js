@@ -45,7 +45,7 @@ function validarMunicipio(m, rotulo) {
 }
 
 function validarResultado(r, cfg) {
-  if (!r || r.versao !== 2 || !isNat(r.gerado) || !isNat(r.minuto) || r.minuto > 2880) return 'cabeçalho';
+  if (!r || r.versao !== 3 || !isNat(r.gerado) || !isNat(r.minuto) || r.minuto > 2880) return 'cabeçalho';
   if (r.turno !== cfg.turno) return 'turno';
   const { presidente: p, governador: g, senador: s } = r.cargos || {};
   if (!p || !p.uf || !g || !g.uf || !s || !s.uf) return 'cargos ausentes';

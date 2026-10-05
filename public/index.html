@@ -6,6 +6,11 @@
   <title>Mapa da Apuração 2026</title>
   <meta name="description" content="Acompanhe a apuração das eleições de 2026 em tempo real: presidente, governadores e senadores, estado por estado e município por município. Dados abertos do TSE.">
   <meta name="color-scheme" content="light dark">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:title" content="Mapa da Apuração 2026">
+  <meta property="og:description" content="Presidente, governadores e senadores em tempo real, estado por estado e município por município. Dados abertos do TSE.">
+  <meta name="theme-color" content="#1f5fbf">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/main.js"></script>
@@ -21,11 +26,17 @@
         <p class="fonte">Dados abertos do TSE · mapas do IBGE</p>
       </div>
     </div>
+    <label class="turno-escolha" id="turno-escolha" hidden>
+      <span class="so-leitor">Turno</span>
+      <select id="turno-select"></select>
+    </label>
     <div class="status" role="status" aria-live="polite">
       <span class="ponto" id="ponto-status" aria-hidden="true"></span>
       <span id="texto-status">Carregando…</span>
     </div>
   </header>
+
+  <p class="faixa-simulacao" id="faixa-simulacao" hidden><strong>Simulação.</strong> Estes números são uma reencenação para teste — não são o resultado oficial.</p>
 
   <section class="progresso" aria-label="Andamento da apuração">
     <div class="progresso-rotulos">
@@ -67,6 +78,12 @@
         <div id="dica" class="dica" role="tooltip" hidden></div>
         <p id="mapa-aviso" class="mapa-aviso" hidden></p>
       </div>
+      <div class="tempo" id="tempo" hidden>
+        <button type="button" id="tempo-tocar" class="botao-icone" aria-label="Reproduzir a apuração">▶</button>
+        <input type="range" id="tempo-cursor" min="0" max="0" step="1" value="0" aria-label="Momento da apuração">
+        <output id="tempo-rotulo" for="tempo-cursor"></output>
+        <button type="button" id="tempo-vivo" class="botao-leve" hidden>Voltar ao atual</button>
+      </div>
       <div class="legenda" id="legenda" aria-label="Legenda"></div>
     </section>
 
@@ -74,7 +91,7 @@
   </main>
 
   <section class="cartao grafico-cartao" aria-label="Evolução da apuração">
-    <h2>Evolução da apuração — presidente, Brasil</h2>
+    <h2>Evolução da apuração — presidente, Brasil <small>(% dos votos válidos)</small></h2>
     <div id="grafico"></div>
   </section>
 

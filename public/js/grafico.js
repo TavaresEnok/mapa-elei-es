@@ -2,10 +2,13 @@
 import { h, s, pct, hhmm, nomeProprio } from './fmt.js';
 import { corDoPartido } from './cores.js';
 
-const L = 720, A = 260, M = { e: 44, d: 14, c: 12, b: 28 };
+const A = 250, M = { e: 44, d: 14, c: 12, b: 28 };
 
-export function desenharGrafico(container, historico, cadastro) {
+/** `marca` (opcional): minuto da reprise, destacado com uma linha vertical. */
+export function desenharGrafico(container, historico, cadastro, marca = null) {
   container.replaceChildren();
+  // largura real do contêiner: 1 unidade do SVG = 1 px, então o texto não cresce em telas largas
+  const L = Math.max(320, Math.round(container.clientWidth) || 720);
   const pontos = (historico && historico.pontos) || [];
   if (pontos.length < 2) {
     container.append(h('p', { classe: 'vazio-msg' }, 'O gráfico aparece quando houver pelo menos dois momentos registrados da apuração.'));
@@ -29,7 +32,7 @@ export function desenharGrafico(container, historico, cadastro) {
     svg.append(s('line', { x1: M.e, x2: L - M.d, y1: Y(v), y2: Y(v), class: 'eixo' }));
     const r = s('text', { x: M.e - 6, y: Y(v) + 4, 'text-anchor': 'end' }); r.textContent = pct(v, 0); svg.append(r);
   }
-  const marcas = Math.min(6, pontos.length);
+  const marcas = Math.min(L < 520 ? 4 : 7, pontos.length);
   for (let i = 0; i < marcas; i++) {
     const t = t0 + ((t1 - t0) * i) / (marcas - 1 || 1);
     const r = s('text', { x: X(t), y: A - 8, 'text-anchor': i === 0 ? 'start' : i === marcas - 1 ? 'end' : 'middle' });
@@ -39,6 +42,7 @@ export function desenharGrafico(container, historico, cadastro) {
     const d = serie.valores.map((v, i) => v == null ? '' : `${i && serie.valores[i - 1] != null ? 'L' : 'M'}${X(pontos[i].minuto).toFixed(1)} ${Y(v).toFixed(1)}`).join('');
     svg.append(s('path', { d, fill: 'none', stroke: corDoPartido(serie.partido, serie.numero), 'stroke-width': 2.4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
   }
+  if (marca != null && marca >= t0 && marca <= t1) svg.append(s('line', { x1: X(marca), x2: X(marca), y1: M.c, y2: A - M.b, class: 'marca' }));
   const guia = s('line', { y1: M.c, y2: A - M.b, class: 'guia', visibility: 'hidden' });
   svg.append(guia);
   const dica = h('div', { classe: 'grafico-dica', hidden: true });

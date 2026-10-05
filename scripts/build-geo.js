@@ -6,7 +6,7 @@
  *   node scripts/build-geo.js
  *
  * Saída (versionada, estática):
- *   public/data/geo/brasil.json     UFs + 5.570 municípios em baixa resolução (visão nacional)
+ *   public/data/geo/brasil.json     UFs (com centroide) + 5.570 municípios em baixa resolução (visão nacional)
  *   public/data/geo/uf/<UF>.json    municípios da UF em resolução intermediária (zoom no estado)
  *
  * Todas as coordenadas passam pela mesma projeção (equiretangular com correção de latitude), então os
@@ -90,6 +90,23 @@ function paraPath(geom, proj) {
   return { d, bbox: [r1(minX), r1(minY), r1(maxX - minX), r1(maxY - minY)] };
 }
 
+/** Centroide (ponderado pela área) do maior polígono da geometria, já projetado — posição do rótulo. */
+function centroide(geom, proj) {
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+  let melhor = null;
+  for (const poly of polys) {
+    const anel = poly[0].map(c => proj.xy(c[0], c[1]));
+    let area = 0, cx = 0, cy = 0;
+    for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+      const f = anel[j][0] * anel[i][1] - anel[i][0] * anel[j][1];
+      area += f; cx += (anel[j][0] + anel[i][0]) * f; cy += (anel[j][1] + anel[i][1]) * f;
+    }
+    if (!area) continue;
+    if (!melhor || Math.abs(area) > Math.abs(melhor.area)) melhor = { area, x: cx / (3 * area), y: cy / (3 * area) };
+  }
+  return melhor ? [r1(melhor.x), r1(melhor.y)] : null;
+}
+
 function escrever(file, obj) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(obj));
@@ -112,7 +129,7 @@ async function main() {
   const ufs = {};
   for (const f of estados.features) {
     const sigla = UF_POR_CODIGO[+f.properties.codarea];
-    ufs[sigla] = paraPath(f.geometry, proj);
+    ufs[sigla] = { ...paraPath(f.geometry, proj), centro: centroide(f.geometry, proj) };
   }
   const municipios = nacional.features.map(f => {
     const id = +f.properties.codarea;

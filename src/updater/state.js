@@ -1,10 +1,10 @@
 'use strict';
-/** Estado persistente do updater (impressão digital da última rodada e do último sweep completo). */
+/** Estado persistente do updater (impressão digital da última rodada e momento do último sweep completo). */
 const fs = require('fs');
 const path = require('path');
 const { loadJson, warn } = require('./util');
 
-const arquivoDe = cfg => path.join(cfg.cacheDir, `estado.${path.basename(cfg.out)}.json`);
+const arquivoDe = cfg => path.join(cfg.cacheDir, `estado.${cfg.nomeDados}.json`);
 
 function loadState(ctx) {
   return loadJson(arquivoDe(ctx.cfg)) || {};

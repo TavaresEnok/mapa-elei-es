@@ -1,20 +1,24 @@
 'use strict';
-/** Tabelas de municípios por UF: carga do disco, atualização incremental e gravação. */
+/** Tabelas de municípios por cargo e UF: carga do disco, atualização incremental e gravação. */
 const path = require('path');
-const { ALL, EXTERIOR } = require('./config');
+const { UFS, ALL, EXTERIOR, CARGOS } = require('./config');
 const { loadJson } = require('./util');
 
 const zerada = (id, nome) => ({ id, nome, secoes: 0, totalizadas: 0, eleitorado: 0, apurado: 0, comparecimento: 0, brancos: 0, nulos: 0, votos: {} });
+
+/** UFs que têm resultado por município para o cargo (o exterior só vota para presidente). */
+const ufsDoCargo = cargo => (cargo === 'pres' ? ALL : UFS);
+const caminho = (cargo, uf) => path.join('municipios', CARGOS[cargo].nome, uf + '.json');
 
 /**
  * Monta a tabela de cada UF a partir da config de municípios do TSE (nome, código TSE, código IBGE),
  * preservando o que já foi apurado em rodadas anteriores. No exterior, o "município" é o país (id = código TSE).
  */
-function carregarTabelas(cfg, cm) {
+function carregarTabelas(cfg, cm, cargo = 'pres') {
   const tabelas = {}, codigoTse = new Map();
-  for (const uf of ALL) {
+  for (const uf of ufsDoCargo(cargo)) {
     const abr = cm.abr.find(a => a.cd === uf.toLowerCase());
-    const anterior = loadJson(path.join(cfg.out, 'municipios', uf + '.json'));
+    const anterior = loadJson(path.join(cfg.dirDados, caminho(cargo, uf)));
     const antes = new Map(((anterior && anterior.municipios) || []).map(m => [m.id, m]));
     const linhas = new Map();
     for (const m of (abr ? abr.mu : [])) {
@@ -48,8 +52,8 @@ function aplicar(tabela, id, u) {
   return true;
 }
 
-function arquivoDe(uf, tabela, gerado) {
-  return { versao: 2, uf, gerado, municipios: [...tabela.values()].sort((a, b) => a.id - b.id) };
+function arquivoDe(cargo, uf, tabela, gerado) {
+  return { versao: 3, cargo: CARGOS[cargo].nome, uf, gerado, municipios: [...tabela.values()].sort((a, b) => a.id - b.id) };
 }
 
-module.exports = { carregarTabelas, aplicar, arquivoDe, titulo };
+module.exports = { carregarTabelas, aplicar, arquivoDe, titulo, ufsDoCargo, caminho };

@@ -23,24 +23,22 @@ async function pool(items, n, fn) {
   return out;
 }
 
-/** Escrita atômica: grava em tmp e renomeia (com retry — no Windows o rename pode colidir com leitura). */
-function writeJson(ctx, rel, obj) {
-  if (ctx.cfg.dryRun) return;
-  const file = path.join(ctx.cfg.out, rel);
+/** Escrita atômica: grava em tmp e renomeia, para ninguém ler um arquivo pela metade. */
+function writeFileAtomic(file, dados) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(obj));
-  for (let a = 0; ; a++) {
-    try { fs.renameSync(tmp, file); break; }
-    catch (e) {
-      if (a >= 8) { try { fs.unlinkSync(tmp); } catch {} throw e; }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25 * (a + 1));
-    }
-  }
+  fs.writeFileSync(tmp, dados);
+  try { fs.renameSync(tmp, file); }
+  catch (e) { try { fs.unlinkSync(tmp); } catch {} throw e; }
+}
+
+/** Grava um JSON na pasta de dados do turno (ou em `base`, se informado). No dry-run, não grava. */
+function writeJson(ctx, rel, obj, base = ctx.cfg.dirDados) {
+  if (ctx.cfg.dryRun) return;
+  writeFileAtomic(path.join(base, rel), JSON.stringify(obj));
   ctx.written++;
 }
 
-
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-module.exports = { sleep, log, warn, int, isNat, clamp, norm, loadJson, pool, writeJson };
+module.exports = { sleep, log, warn, int, isNat, clamp, norm, loadJson, pool, writeJson, writeFileAtomic };

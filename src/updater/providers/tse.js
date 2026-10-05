@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { CARGOS } = require('../config');
 const { loadJson, warn } = require('../util');
-const { httpJson } = require('../http');
+const { httpJson, httpBytes } = require('../http');
 
 class TseProvider {
   constructor(cfg) {
@@ -37,6 +37,10 @@ class TseProvider {
     if (!cached) throw new Error('sem config de municípios (rede e cache indisponíveis)');
     this._cm = cached; this._cmAt = Date.now();
     return cached;
+  }
+  /** Foto oficial do candidato (JPEG) ou null. `abr` é 'br' para presidente e a UF nos demais cargos. */
+  async foto({ cargo, abr, sq }) {
+    return httpBytes(`${this.cfg.base}/ele${this.cfg.ano}/${this.ele(cargo)}/fotos/${abr}/${sq}.jpeg`, { retries: 1 });
   }
   /** → null (não publicado) | {unchanged:true} (304) | {doc, ack()} */
   async doc(q) {

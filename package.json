@@ -1,7 +1,7 @@
 {
   "name": "mapa",
-  "version": "2.0.0",
-  "description": "Mapa de apuração eleitoral ao vivo (5.570 municípios, 27 UFs) alimentado pela API pública do TSE.",
+  "version": "3.0.0",
+  "description": "Mapa de apuração eleitoral ao vivo (presidente, governador e senador; 5.570 municípios) com dados abertos do TSE e malhas do IBGE.",
   "private": true,
   "license": "ISC",
   "type": "commonjs",
@@ -13,6 +13,8 @@
     "start": "node src/server.js",
     "updater": "node src/updater/index.js",
     "updater:once": "node src/updater/index.js --once",
+    "simular": "node src/updater/index.js --simular",
+    "geo": "node scripts/build-geo.js",
     "pm2": "pm2 start ecosystem.config.js",
     "test": "node --test test/*.test.js"
   },

@@ -11,12 +11,16 @@ async function throttle() {
   if (at > now) await sleep(at - now);
 }
 
-async function httpJson(url, { etag, timeout = 20000, retries = 2 } = {}) {
+/**
+ * GET com limite de taxa, retry e tratamento de 429. Devolve { status: 200, corpo, etag } ou { status: 304 | 404 }.
+ * `ler` converte a resposta (texto → JSON, ou bytes).
+ */
+async function requisitar(url, { etag, timeout = 20000, retries = 2, accept = 'application/json', ler }) {
   let tooMany = 0;
   for (let a = 0; ; a++) {
     try {
       await throttle();
-      const headers = { 'User-Agent': UA, Accept: 'application/json' };
+      const headers = { 'User-Agent': UA, Accept: accept };
       if (etag) headers['If-None-Match'] = etag;
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeout) });
       if (res.status === 429) {
@@ -31,8 +35,7 @@ async function httpJson(url, { etag, timeout = 20000, retries = 2 } = {}) {
       if (res.status === 304) return { status: 304 };
       if (!res.ok) throw new Error('HTTP ' + res.status);
       if (++limiter.ok % 100 === 0) limiter.rps = Math.min(limiter.max, limiter.rps * 1.15);
-      const json = JSON.parse((await res.text()).replace(/^﻿/, ''));
-      return { status: 200, json, etag: res.headers.get('etag') };
+      return { status: 200, corpo: await ler(res), etag: res.headers.get('etag') };
     } catch (e) {
       if (a >= retries) throw new Error(e.message + ' (' + url + ')');
       await sleep(400 * 2 ** a);
@@ -40,4 +43,14 @@ async function httpJson(url, { etag, timeout = 20000, retries = 2 } = {}) {
   }
 }
 
-module.exports = { limiter, throttle, httpJson };
+async function httpJson(url, opcoes = {}) {
+  const r = await requisitar(url, { ...opcoes, ler: async res => JSON.parse((await res.text()).replace(/^\uFEFF/, '')) });
+  return r.status === 200 ? { status: 200, json: r.corpo, etag: r.etag } : r;
+}
+
+async function httpBytes(url, opcoes = {}) {
+  const r = await requisitar(url, { accept: '*/*', ...opcoes, ler: async res => Buffer.from(await res.arrayBuffer()) });
+  return r.status === 200 ? r.corpo : null;
+}
+
+module.exports = { limiter, throttle, httpJson, httpBytes };

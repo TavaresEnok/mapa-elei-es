@@ -30,13 +30,16 @@ export class Busca {
     const q = semAcento(this.campo.value.trim());
     if (!q) { this.resultados = this.itens.filter(i => i.tipo === 'uf'); }
     else {
-      const comeca = [], contem = [];
+      // ordem: nome idêntico, começa com o termo, palavra que começa com o termo, contém; empates pelo nome mais curto
+      const achados = [];
       for (const i of this.itens) {
         const pos = i.chave.indexOf(q);
-        if (pos === 0 || (pos > 0 && i.chave[pos - 1] === ' ')) comeca.push(i); else if (pos > 0) contem.push(i);
-        if (comeca.length >= 12) break;
+        if (pos < 0) continue;
+        const nota = i.chave === q || i.chave.startsWith(q + ' ') && i.tipo === 'uf' ? 0 : pos === 0 ? 1 : i.chave[pos - 1] === ' ' ? 2 : 3;
+        achados.push({ i, nota: i.chave === q ? 0 : nota });
       }
-      this.resultados = [...comeca, ...contem].slice(0, 12);
+      achados.sort((a, b) => a.nota - b.nota || (a.i.tipo === 'uf' ? 0 : 1) - (b.i.tipo === 'uf' ? 0 : 1) || a.i.chave.length - b.i.chave.length || a.i.chave.localeCompare(b.i.chave));
+      this.resultados = achados.slice(0, 12).map(x => x.i);
     }
     this.ativo = 0; this.renderizar();
   }

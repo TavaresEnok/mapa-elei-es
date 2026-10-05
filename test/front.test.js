@@ -1,103 +1,80 @@
 'use strict';
-/**
- * Teste de ponta a ponta do front: carrega public/index.html e public/js/main.js no jsdom, serve os arquivos de
- * public/ pelo fetch e exercita cargo, nível, seleção de UF e município. Requer public/data/resultado.json
- * (gerado pelo updater); sem ele, o teste é ignorado.
- */
+/** Front de ponta a ponta com os dados reais do 1º turno (ignorado se o updater ainda não gerou public/data/turno1). */
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
-const { pathToFileURL } = require('url');
-const { JSDOM } = require('jsdom');
+const { montarApp, existe } = require('./apoio/dom');
 
-const PUBLIC = path.join(__dirname, '..', 'public');
-const temDados = fs.existsSync(path.join(PUBLIC, 'data', 'resultado.json'));
-const espera = ms => new Promise(r => setTimeout(r, ms));
+test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/resultado.json'), timeout: 90000 }, async t => {
+  const { $, $$, espera, ate, evento, erros, pedidos } = await montarApp(t, 'http://localhost/?fonte=turno1');
+  const pintados = sel => $$(sel).filter(e => e.style.fill).length;
 
-test('front: mapa, painel, cargos e seleção', { skip: !temDados, timeout: 60000 }, async t => {
-  const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replace(/<script[^>]*><\/script>/, '');
-  const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true });
-  const { window } = dom;
-  const erros = [];
-  Object.assign(globalThis, {
-    window, document: window.document, location: window.location, history: window.history,
-    SVGPathElement: window.SVGElement, DOMPoint: class { constructor(x, y) { this.x = x; this.y = y; } matrixTransform() { return this; } },
-    matchMedia: () => ({ matches: true }),
-    requestAnimationFrame: f => setTimeout(() => f(performance.now()), 0), cancelAnimationFrame: clearTimeout,
-    fetch: async url => {
-      const arq = path.join(PUBLIC, String(url).split('?')[0]);
-      if (!fs.existsSync(arq)) return { ok: false, status: 404, json: async () => ({}) };
-      return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(arq, 'utf8')) };
-    },
-  });
-  window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
-  window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
-  window.SVGElement.prototype.getBBox = () => ({ x: 0, y: 0, width: 10, height: 10 });
-  window.Element.prototype.scrollIntoView = () => {};
-  window.addEventListener('error', e => erros.push(e.message));
-  const intervalos = [];
-  const setI = globalThis.setInterval; globalThis.setInterval = (f, ms) => { const i = setI(f, ms); intervalos.push(i); return i; };
-  t.after(() => { intervalos.forEach(clearInterval); window.close(); });
-
-  await import(pathToFileURL(path.join(PUBLIC, 'js', 'main.js')).href);
-  const $ = sel => document.querySelector(sel);
-  for (let i = 0; i < 60 && !$('#painel h2'); i++) await espera(100);
-
-  await t.test('desenha 5.570 municípios e 27 estados', () => {
-    assert.strictEqual(document.querySelectorAll('#svg-mapa .m').length, 5570);
-    assert.strictEqual(document.querySelectorAll('#svg-mapa .u').length, 27);
-    assert.ok(document.querySelectorAll('#svg-mapa .u[fill]').length >= 27, 'estados pintados');
+  await t.test('desenha 5.570 municípios, 27 estados pintados e os rótulos', () => {
+    assert.strictEqual($$('#svg-mapa .m').length, 5570);
+    assert.strictEqual($$('#svg-mapa .u').length, 27);
+    assert.strictEqual(pintados('#svg-mapa .u'), 27, 'estados pintados via estilo (CSS venceria o atributo fill)');
+    assert.strictEqual($$('#svg-mapa .rotulo').length, 27);
     assert.match($('#svg-mapa').getAttribute('viewBox'), /^[\d. -]+$/);
   });
 
-  await t.test('painel do Brasil lista candidatos e estados', () => {
-    assert.strictEqual($('#painel h2').textContent.startsWith('Brasil'), true);
+  await t.test('painel do Brasil: disputa, candidatos com foto e tabela de estados', () => {
+    assert.ok($('#painel h2').textContent.startsWith('Brasil'));
+    assert.ok($('#painel .disputa'), 'barra de disputa');
     assert.ok($('#painel .candidato .nome'));
-    assert.strictEqual(document.querySelectorAll('#painel tr[data-uf]').length, 27);
+    assert.match($('#painel .avatar img').getAttribute('src'), /^data\/fotos\/\d+\.jpeg$/);
+    assert.strictEqual($$('#painel tr[data-chave]').length, 27);
     assert.match($('#progresso-valor').textContent, /%/);
     assert.match($('#texto-status').textContent, /TSE/);
+    assert.strictEqual($('#faixa-simulacao').hidden, true, 'dados reais não mostram a faixa de simulação');
+    assert.ok(!pedidos.some(p => p.includes('/municipios/')), 'municípios só são baixados quando necessários');
   });
 
   await t.test('selecionar um estado abre a ficha e a tabela de municípios', async () => {
-    $('#painel tr[data-uf="SP"]').dispatchEvent(new window.Event('click'));
-    await espera(50);
+    evento($('#painel tr[data-chave="SP"]'), 'click');
+    await ate(() => $$('#painel tr[data-chave]').length > 600, 'municípios de SP');
     assert.match($('#painel h2').textContent, /São Paulo/);
-    assert.ok(document.querySelectorAll('#painel tr[data-uf]').length > 600, 'municípios de SP');
     assert.strictEqual($('#voltar').hidden, false);
-    assert.ok(document.querySelectorAll('#svg-mapa .u.fora').length === 26);
+    assert.strictEqual($$('#svg-mapa .u.fora').length, 26);
   });
 
   await t.test('município mostra ficha própria', async () => {
-    $('#painel tr[data-uf]').dispatchEvent(new window.Event('click'));
-    await espera(50);
+    evento($('#painel tr[data-chave]'), 'click');
+    await espera(80);
     assert.match($('#mapa-titulo').textContent, /· SP$/);
     assert.ok($('#painel .candidato'));
   });
 
-  await t.test('governador e senador: troca de cargo, nível some', async () => {
-    $('[data-nivel="municipios"]').click(); await espera(20);
-    $('[data-cargo="governador"]').click(); await espera(20);
-    assert.strictEqual($('[data-nivel="municipios"]').disabled, true);
-    assert.strictEqual($('#svg-mapa').classList.contains('nivel-estados'), true);
-    $('#voltar').click(); await espera(20);
+  await t.test('nível municípios pinta o país; governador e senador também têm municípios', async () => {
+    $('[data-nivel="municipios"]').click();
+    await ate(() => pintados('#svg-mapa .m') > 5500, 'municípios de presidente pintados');
+    $('[data-cargo="governador"]').click();
+    assert.strictEqual($('[data-nivel="municipios"]').disabled, false);
+    await ate(() => pedidos.some(p => p.includes('municipios/governador/SP.json')) && pintados('#svg-mapa .m') > 5500, 'municípios de governador');
+    await ate(() => $('#painel .candidato'), 'ficha do município para governador');
+    $('#voltar').click(); await espera(50);
     assert.strictEqual($('#painel h2').textContent, 'Governadores');
-    $('[data-cargo="senador"]').click(); await espera(20);
+    $('[data-cargo="senador"]').click(); await espera(50);
     assert.strictEqual($('#painel h2').textContent, 'Senadores');
+    evento($('#painel tr[data-chave="SP"]'), 'click'); await espera(50);
+    assert.match($('#painel').textContent, /vagas/);
+    assert.strictEqual($('#painel .disputa'), null, 'com duas vagas não há duelo');
   });
 
   await t.test('busca encontra município sem acento', async () => {
-    $('[data-cargo="presidente"]').click(); await espera(20);
+    $('[data-cargo="presidente"]').click(); await espera(30);
     $('#abrir-busca').click();
     $('#busca-campo').value = 'sao paulo';
-    $('#busca-campo').dispatchEvent(new window.Event('input'));
-    const itens = [...document.querySelectorAll('#busca-lista li')].map(li => li.textContent);
-    assert.ok(itens.some(x => x.startsWith('São Paulo')), itens.join('|'));
+    evento($('#busca-campo'), 'input');
+    const itens = $$('#busca-lista li').map(li => li.textContent);
+    assert.ok(itens[0].startsWith('São Paulo'), itens.join('|'));
+    assert.ok(itens.some(x => x === 'São PauloSP'), 'a capital aparece: ' + itens.join('|'));
+    $('#busca-campo').value = 'campinas';
+    evento($('#busca-campo'), 'input');
+    assert.strictEqual($('#busca-lista li').textContent, 'CampinasSP', 'nome exato vem primeiro');
   });
 
   await t.test('sem erros de execução e sem recursos externos', () => {
     assert.deepStrictEqual(erros, []);
-    const externos = [...document.querySelectorAll('[src],[href]')].map(e => e.getAttribute('src') || e.getAttribute('href'))
+    const externos = $$('[src],[href]').map(e => e.getAttribute('src') || e.getAttribute('href'))
       .filter(u => /^(https?:)?\/\//.test(u) && !/ibge\.gov\.br|resultados\.tse\.jus\.br/.test(u));
     assert.deepStrictEqual(externos, []);
   });
