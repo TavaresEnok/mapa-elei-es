@@ -182,9 +182,9 @@ async function runCycle(ctx) {
   saveState(ctx);
 
   const pct = (BR.totalizadas / BR.secoes * 100).toFixed(2);
-  const lideres = BR.candidatos.slice(0, 2).map(c => `${c.nome}: ${c.votos.toLocaleString('pt-BR')}`).join(' · ');
+  const naFrente = BR.candidatos.slice(0, 2).map(c => `${c.nome}: ${c.votos.toLocaleString('pt-BR')}`).join(' · ');
   const hh = `${String(Math.floor(minuto / 60) % 24).padStart(2, '0')}:${String(minuto % 60).padStart(2, '0')}`;
-  log(`${cfg.dryRun ? '[dry-run] ' : ''}${cfg.simular ? '[simulação] ' : ''}t=${minuto} (${hh}) · ${pct}% seções · ${lideres} · ${BR.situacao}`
+  log(`${cfg.dryRun ? '[dry-run] ' : ''}${cfg.simular ? '[simulação] ' : ''}t=${minuto} (${hh}) · ${pct}% seções · ${naFrente} · ${BR.situacao}`
     + (varPres ? textoVarredura('presidente', varPres) : '') + textoB
     + (fotosNovas ? ` · ${fotosNovas} fotos novas` : '')
     + ` · ${ctx.written} arquivos · ${msFaseA}ms + ${Date.now() - t0 - msFaseA}ms${coleta.falhas ? ` · ${coleta.falhas} falhas de UF` : ''}`);

@@ -176,3 +176,23 @@ test('simulação: começa vazia, termina igual ao resultado real e nunca passa 
   assert.deepStrictEqual(votos(await total('gov')), votos(real.cargos.governador.uf.SP));
   assert.ok(sorteio(3550308) >= 0 && sorteio(3550308) < 1);
 });
+
+test('ciclo completo com o provider simulado grava um feed válido (integração)', { skip: !temTurno1, timeout: 60000 }, async () => {
+  const { runCycle } = require('../src/updater/cycle');
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'mapa-ciclo-'));
+  const cfg = { ...makeConfig({ turno: '1', simular: true, 'sim-minutos': '1', 'no-fotos': true }), dirDados: path.join(out, 'simulacao'), cacheDir: out };
+  const provider = new SimProvider(cfg);
+  provider.inicio = Date.now() - 30000;   // meio da apuração
+  const ctx = { cfg, provider, state: {}, written: 0, first: true };
+  const silencio = console.log; console.log = () => {};
+  try { await runCycle(ctx); } finally { console.log = silencio; }
+  const ler = rel => JSON.parse(fs.readFileSync(path.join(cfg.dirDados, rel), 'utf8'));
+  const r = ler('resultado.json');
+  assert.strictEqual(validarResultado(r, cfg), null);
+  assert.strictEqual(r.simulacao, true);
+  const hist = ler('historico.json');
+  assert.ok(Object.keys(hist.pontos[0].lideres).length > 20, 'histórico guarda o líder de cada UF');
+  assert.strictEqual(ler('linha-do-tempo/indice.json').minutos.length, 1);
+  for (const cargo of ['presidente', 'governador', 'senador']) assert.ok(ler(`municipios/${cargo}/SP.json`).municipios.length > 600, cargo);
+  assert.ok(!fs.existsSync(path.join(DADOS, '..', '..', 'indice-nao-deve-existir')), 'simulação não mexe no índice real');
+});
