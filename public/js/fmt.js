@@ -2,6 +2,9 @@
 const inteiro = new Intl.NumberFormat('pt-BR');
 
 export const num = v => inteiro.format(v);
+const compactoFmt = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
+/** 2.600.000 → "2,6 mi" */
+export const compacto = v => compactoFmt.format(v);
 export const pct = (fracao, casas = 2) =>
   (fracao * 100).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }) + '%';
 export const semAcento = s => String(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();

@@ -4,8 +4,8 @@ import { corDoPartido } from './cores.js';
 
 const A = 250, M = { e: 44, d: 14, c: 12, b: 28 };
 
-/** `marca` (opcional): minuto da reprise, destacado com uma linha vertical. */
-export function desenharGrafico(container, historico, cadastro, marca = null) {
+/** `marca`: minuto da reprise, destacado com uma linha vertical. `aoEscolher(minuto)`: chamado ao clicar num ponto. */
+export function desenharGrafico(container, historico, cadastro, marca = null, aoEscolher = null) {
   container.replaceChildren();
   // largura real do contêiner: 1 unidade do SVG = 1 px, então o texto não cresce em telas largas
   const L = Math.max(320, Math.round(container.clientWidth) || 720);
@@ -61,6 +61,15 @@ export function desenharGrafico(container, historico, cadastro, marca = null) {
     dica.style.right = lado ? `${r.width - (X(p.minuto) / L) * r.width + 12}px` : '';
   });
   svg.addEventListener('pointerleave', () => { dica.hidden = true; guia.setAttribute('visibility', 'hidden'); });
+  if (aoEscolher) {
+    svg.classList.add('clicavel');
+    svg.addEventListener('click', e => {
+      const r = svg.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * L;
+      let melhor = 0;
+      pontos.forEach((p, i) => { if (Math.abs(X(p.minuto) - x) < Math.abs(X(pontos[melhor].minuto) - x)) melhor = i; });
+      aoEscolher(pontos[melhor].minuto);
+    });
+  }
 
   container.append(svg, dica, h('div', { classe: 'grafico-legenda' }, series.map(sr =>
     h('span', null, h('i', { classe: 'amostra', estilo: { background: corDoPartido(sr.partido, sr.numero) } }), ` ${nomeProprio(sr.nome)} (${sr.partido})`))));

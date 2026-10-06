@@ -2,6 +2,7 @@
 import { s } from './fmt.js';
 
 const REDUZIR = matchMedia('(prefers-reduced-motion: reduce)');
+const GRUPOS_EXTERNOS = [['RN', 'PB', 'PE', 'AL', 'SE'], ['ES', 'RJ']];   // rótulos puxados para fora do mapa
 const LIMITE_ARRASTE = 5;   // px antes de um clique virar arraste
 
 export class Mapa {
@@ -31,10 +32,14 @@ export class Mapa {
     }
     // rótulos com a sigla de cada estado, no centroide
     const gRot = s('g', { id: 'camada-rotulos', 'aria-hidden': 'true' });
+    this.rotulos = new Map();
     for (const [uf, g] of Object.entries(geo.ufs)) {
       if (!g.centro) continue;
       const t = s('text', { x: g.centro[0], y: g.centro[1], class: 'rotulo', 'data-uf': uf });
       t.textContent = uf;
+      const item = { texto: t, centro: g.centro, bbox: g.bbox };
+      if (GRUPOS_EXTERNOS.some(grupo => grupo.includes(uf))) { item.linha = s('line', { class: 'rotulo-linha' }); gRot.append(item.linha); }
+      this.rotulos.set(uf, item);
       gRot.append(t);
     }
     svg.append(gMun, gUf, gRot);
@@ -91,7 +96,63 @@ export class Mapa {
     this.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
     // unidades do SVG por pixel de tela: mantém os rótulos com tamanho constante em qualquer zoom
     const caixa = this.svg.getBoundingClientRect();
-    if (caixa.width && caixa.height) this.svg.style.setProperty('--u', Math.max(w / caixa.width, h / caixa.height));
+    if (caixa.width && caixa.height) {
+      const u = Math.max(w / caixa.width, h / caixa.height);
+      this.svg.style.setProperty('--u', u);
+      if (!this.ufSel && Math.abs(u - (this.uRotulos || 0)) > u * 0.04) this.posicionarRotulos(u);
+    }
+  }
+
+  /**
+   * Estados pequenos e vizinhos (litoral do Nordeste, ES/RJ) têm o rótulo puxado para o mar, numa coluna,
+   * ligado ao estado por uma linha. O espaçamento acompanha a escala para o texto nunca se sobrepor.
+   */
+  posicionarRotulos(u) {
+    this.uRotulos = u;
+    for (const grupo of GRUPOS_EXTERNOS) {
+      const itens = grupo.map(uf => this.rotulos.get(uf)).filter(Boolean).sort((a, b) => a.centro[1] - b.centro[1]);
+      if (!itens.length) continue;
+      const x = Math.max(...itens.map(i => i.bbox[0] + i.bbox[2])) + 16 * u;
+      const passo = 14 * u, meio = itens.reduce((t, i) => t + i.centro[1], 0) / itens.length;
+      itens.forEach((item, k) => {
+        const y = meio + (k - (itens.length - 1) / 2) * passo;
+        item.texto.setAttribute('x', x); item.texto.setAttribute('y', y);
+        item.texto.classList.add('externo');
+        for (const [a, v] of [['x1', item.centro[0]], ['y1', item.centro[1]], ['x2', x - 3 * u], ['y2', y]]) item.linha.setAttribute(a, v);
+      });
+    }
+  }
+
+  /**
+   * Gera um PNG do mapa como está na tela. O SVG depende do CSS da página, então cada forma do clone
+   * recebe os valores já calculados (cor, traço, fonte) antes de ser desenhada num canvas.
+   */
+  async exportarPng(largura = 1600) {
+    const { svg } = this, { w, h } = this.vb;
+    const clone = svg.cloneNode(true);
+    const originais = svg.querySelectorAll('path, text, line'), copias = clone.querySelectorAll('path, text, line');
+    const PROPS = ['fill', 'stroke', 'stroke-width', 'stroke-opacity', 'opacity', 'font-size', 'font-weight', 'font-family', 'text-anchor', 'dominant-baseline', 'paint-order', 'stroke-linejoin', 'letter-spacing'];
+    originais.forEach((el, i) => {
+      const cs = getComputedStyle(el), c = copias[i];
+      if (cs.display === 'none') { c.remove(); return; }
+      c.removeAttribute('class'); c.removeAttribute('style');
+      for (const p of PROPS) { const v = cs.getPropertyValue(p); if (v) c.setAttribute(p, v); }
+      if (el.tagName !== 'text') c.setAttribute('vector-effect', 'non-scaling-stroke');
+    });
+    const altura = Math.round(largura * h / w);
+    const fundo = getComputedStyle(svg.parentElement).backgroundColor;
+    clone.removeAttribute('class'); clone.removeAttribute('style'); clone.removeAttribute('id');
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', largura); clone.setAttribute('height', altura);
+    const img = new Image();
+    await new Promise((ok, erro) => { img.onload = ok; img.onerror = () => erro(new Error('não foi possível desenhar o mapa'));
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone)); });
+    const canvas = document.createElement('canvas');
+    canvas.width = largura; canvas.height = altura;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = fundo; ctx.fillRect(0, 0, largura, altura);
+    ctx.drawImage(img, 0, 0, largura, altura);
+    return new Promise(ok => canvas.toBlob(ok, 'image/png'));
   }
 
   irPara(alvo) {

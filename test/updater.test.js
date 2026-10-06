@@ -100,7 +100,8 @@ test('municípios: nomes, carga a partir da config do TSE e aplicação de unida
   assert.ok(aplicar(tabelas.AC, 1200013, u));
   assert.strictEqual(aplicar(tabelas.AC, 999, u), false);
   const linha = tabelas.AC.get(1200013);
-  assert.deepStrictEqual(linha.votos, { 13: 400, 22: 250 });   // anulado fora
+  assert.deepStrictEqual(linha.votos, { 13: 400, 22: 250 });
+  assert.strictEqual(linha.anulados, 20, 'sub judice entra só como total');
   assert.strictEqual(validarMunicipio(linha, 'AC'), null);
   assert.match(validarMunicipio({ ...linha, totalizadas: 999 }, 'AC'), /seções/);
 

@@ -3,11 +3,11 @@ import * as api from './api.js';
 import { Mapa } from './mapa.js';
 import { Busca } from './busca.js';
 import { desenharGrafico } from './grafico.js';
-import { painelUnidade, tabelaUfs, tabelaMunicipios, blocoCandidatos, blocoNumeros } from './painel.js';
-import { corDaUnidade, lider, unidadeDeMunicipio, unidadeDeRetrato, cadastroDe, apuradoPct, validos } from './dados.js';
+import { painelUnidade, tabelaUfs, tabelaMunicipios, blocoCandidatos, blocoNumeros, placar, tabelaRegioes, listaViradas } from './painel.js';
+import { corDaUnidade, lider, unidadeDeMunicipio, unidadeDeRetrato, cadastroDe, apuradoPct, validos, porRegiao, viradas } from './dados.js';
 import { corDoPartido, intensidade } from './cores.js';
 import { h, pct, hhmm, nomeProprio } from './fmt.js';
-import { NOMES_UF, LISTA_UFS } from './ufs.js';
+import { NOMES_UF, LISTA_UFS, REGIOES } from './ufs.js';
 
 const CARGOS = { presidente: 'Presidente', governador: 'Governador', senador: 'Senador' };
 const PLURAL = { presidente: 'Presidente', governador: 'Governadores', senador: 'Senadores' };
@@ -99,7 +99,7 @@ function garantirMunicipios(cargo = estado.cargo) {
     estado.linhasDe[cargo] = gerado;
     recalcularCores(cargo);
     estado.carregandoMun = Object.keys(pendentes).length > 0;
-    if (cargo === estado.cargo) { renderMapa(); renderLegenda(); renderPainel(); }
+    if (cargo === estado.cargo) { renderPlacar(); renderMapa(); renderLegenda(); renderPainel(); }
     renderAviso();
   });
   return pendentes[cargo];
@@ -210,6 +210,8 @@ function painelBrasil() {
   const unidades = Object.fromEntries(LISTA_UFS.map(uf => [uf, unidadeUf(uf)]).filter(([, u]) => u));
   if (estado.cargo === 'presidente') {
     partes.push(...painelUnidade({ titulo: 'Brasil', subtitulo: emReprise() ? `Presidente · às ${hhmm(estado.tempo.minuto)}` : 'Presidente', unidade: unidadeBrasil() }));
+    partes.push(listaViradas(viradas(estado.historico, emReprise() ? estado.tempo.minuto : Infinity), cadastroPresidente(), NOMES_UF));
+    partes.push(tabelaRegioes(porRegiao(unidades, REGIOES, cadastroPresidente())));
     partes.push(tabelaUfs(unidades, uf => selecionar({ uf })));
     const ex = r.cargos.presidente.exterior;
     if (ex && ex.secoes && !emReprise()) partes.push(h('details', null, h('summary', null, `Votos no exterior (${pct(apuradoPct(ex), 0)} apurado)`),
@@ -246,9 +248,46 @@ function renderTempo() {
   $('tempo-tocar').setAttribute('aria-label', t.tocando ? 'Pausar' : 'Reproduzir a apuração');
 }
 
+/** Placar do recorte aberto (Brasil, estado ou município) para o cargo atual. */
+function renderPlacar() {
+  const alvo = $('placar');
+  if (!estado.resultado) { alvo.replaceChildren(); return; }
+  const { uf, mun, cargo } = estado;
+  let u = null, local = 'Brasil', inteira = false;
+  if (uf && mun) {
+    const linha = !emReprise() && linhaMun(uf, mun);
+    u = linha && linha.secoes ? unidadeDeMunicipio(linha, cadastro(uf), vagasDe(uf)) : null;
+    local = `${nomeMunicipio(uf, mun)} (${uf})`;
+  } else if (uf) { u = unidadeUf(uf); local = NOMES_UF[uf]; inteira = cargo === 'governador'; }
+  else if (cargo === 'presidente') { u = unidadeBrasil(); inteira = true; }
+  alvo.hidden = !uf && cargo !== 'presidente';
+  if (alvo.hidden) return;
+  alvo.replaceChildren(...placar(u, { rotulo: h('span', null, h('strong', null, CARGOS[cargo]), ` em ${local}${emReprise() ? ` · às ${hhmm(estado.tempo.minuto)}` : ''}`),
+    decide2Turno: inteira && estado.resultado.turno === 1 }));
+}
+
+/** Clique no gráfico: leva a linha do tempo ao retrato mais próximo daquele minuto. */
+function irParaMinuto(minuto) {
+  const { minutos } = estado.tempo;
+  if (minutos.length < 2) return;
+  let melhor = 0;
+  minutos.forEach((m, i) => { if (Math.abs(m - minuto) < Math.abs(minutos[melhor] - minuto)) melhor = i; });
+  pararReprise(); irParaIndice(melhor);
+}
+const redesenharGrafico = () => desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null, irParaMinuto);
+
+async function baixarMapa() {
+  try {
+    const blob = await mapa.exportarPng();
+    const link = h('a', { href: URL.createObjectURL(blob), download: `mapa-${estado.cargo}-${(estado.uf || 'brasil').toLowerCase()}.png` });
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+  } catch { /* navegador sem suporte: nada a fazer */ }
+}
+
 function renderTudo() {
-  renderStatus(); renderControles(); renderMapa(); renderLegenda(); renderPainel(); renderTempo();
-  desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null);
+  renderStatus(); renderControles(); renderPlacar(); renderMapa(); renderLegenda(); renderPainel(); renderTempo();
+  redesenharGrafico();
   atualizarHash();
   if (precisaDeMunicipios()) garantirMunicipios();
 }
@@ -295,7 +334,7 @@ async function carregarLinhaDoTempo() {
 
 async function selecionar({ uf = null, mun = null }) {
   estado.uf = uf; estado.mun = mun;
-  renderControles(); renderMapa(); renderPainel(); atualizarHash();
+  renderControles(); renderPlacar(); renderMapa(); renderPainel(); atualizarHash();
   if (precisaDeMunicipios()) garantirMunicipios();
   if (!mapa) return;
   if (uf && estado.nivel === 'municipios') await garantirDetalhe(uf);
@@ -455,12 +494,13 @@ async function iniciar() {
   $('zoom-mais').addEventListener('click', () => mapa.zoom(0.7));
   $('zoom-menos').addEventListener('click', () => mapa.zoom(1.4));
   $('zoom-reset').addEventListener('click', () => mapa.enquadrar(estado.uf));
+  $('baixar-mapa').addEventListener('click', baixarMapa);
   $('turno-select').addEventListener('change', e => trocarFonte(e.target.value));
   $('tempo-cursor').addEventListener('input', e => { pararReprise(); irParaIndice(+e.target.value); });
   $('tempo-tocar').addEventListener('click', alternarReprise);
   $('tempo-vivo').addEventListener('click', () => irParaIndice(Infinity));
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('busca').open && (estado.uf || estado.mun)) selecionar(estado.mun ? { uf: estado.uf } : {}); });
-  window.addEventListener('resize', () => { mapa.enquadrar(estado.uf); desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null); });
+  window.addEventListener('resize', () => { mapa.enquadrar(estado.uf); redesenharGrafico(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) atualizar(); });
 
   renderTudo();

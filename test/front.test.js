@@ -18,7 +18,9 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
 
   await t.test('painel do Brasil: disputa, candidatos com foto e tabela de estados', () => {
     assert.ok($('#painel h2').textContent.startsWith('Brasil'));
-    assert.ok($('#painel .disputa'), 'barra de disputa');
+    assert.ok($('#placar .disputa-barra'), 'placar com a barra de disputa');
+    assert.match($('#placar .veredito').textContent, /2º turno|Ainda pode virar|Não vira mais|concluída/);
+    assert.ok($('#painel').textContent.includes('Por região'));
     assert.ok($('#painel .candidato .nome'));
     assert.match($('#painel .avatar img').getAttribute('src'), /^data\/fotos\/\d+\.jpeg$/);
     assert.strictEqual($$('#painel tr[data-chave]').length, 27);
@@ -56,7 +58,11 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
     assert.strictEqual($('#painel h2').textContent, 'Senadores');
     evento($('#painel tr[data-chave="SP"]'), 'click'); await espera(50);
     assert.match($('#painel').textContent, /vagas/);
-    assert.strictEqual($('#painel .disputa'), null, 'com duas vagas não há duelo');
+    assert.match($('#placar .veredito').textContent, /Última vaga/);
+    // percentuais na mesma base do TSE (inclui sub judice): RJ, governador, líder com 49,27%
+    $('[data-cargo="governador"]').click(); $('#voltar').click(); await espera(30);
+    evento($('#painel tr[data-chave="RJ"]'), 'click'); await espera(60);
+    assert.strictEqual($('#painel .candidato .valor strong').textContent, '49,27%');
   });
 
   await t.test('busca encontra município sem acento', async () => {

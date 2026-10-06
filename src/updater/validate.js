@@ -39,7 +39,8 @@ function validarMunicipio(m, rotulo) {
   if (!m.votos || typeof m.votos !== 'object') return `${rotulo}.votos: ausente`;
   let soma = 0;
   for (const k in m.votos) { if (!isNat(m.votos[k])) return `${rotulo}.votos.${k}`; soma += m.votos[k]; }
-  if (soma + m.brancos + m.nulos > m.comparecimento * 1.005 + 10) return `${rotulo}: votos somam mais que o comparecimento`;
+  if (m.anulados != null && !isNat(m.anulados)) return `${rotulo}.anulados`;
+  if (soma + (m.anulados || 0) + m.brancos + m.nulos > m.comparecimento * 2.01 + 10) return `${rotulo}: votos somam mais que o dobro do comparecimento`;
   if (m.comparecimento > m.apurado * 1.01 + 10) return `${rotulo}: comparecimento maior que o apurado`;
   return null;
 }

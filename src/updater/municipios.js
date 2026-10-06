@@ -41,13 +41,15 @@ function titulo(s) {
     .replace(/(^|[-'])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
 }
 
-/** Unidade (com candidatos) → linha do município. Votos anulados não entram. */
+/** Unidade (com candidatos) → linha do município. Votos anulados sub judice entram só como total (`anulados`). */
 function aplicar(tabela, id, u) {
   const atual = tabela.get(id);
   if (!atual) return false;
   const votos = {};
-  for (const c of u.candidatos) if (!c.anulado) votos[c.numero] = c.votos;
-  tabela.set(id, { ...atual, secoes: u.secoes, totalizadas: u.totalizadas, eleitorado: u.eleitorado, apurado: u.apurado,
+  let anulados = 0;
+  for (const c of u.candidatos) { if (c.anulado) anulados += c.votos; else votos[c.numero] = c.votos; }
+  const { anulados: _antigo, ...base } = atual;
+  tabela.set(id, { ...base, ...(anulados ? { anulados } : {}), secoes: u.secoes, totalizadas: u.totalizadas, eleitorado: u.eleitorado, apurado: u.apurado,
     comparecimento: u.comparecimento, brancos: u.brancos, nulos: u.nulos, votos });
   return true;
 }

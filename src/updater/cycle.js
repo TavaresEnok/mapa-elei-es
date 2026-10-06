@@ -143,7 +143,13 @@ async function runCycle(ctx) {
 
   const hist = loadJson(path.join(cfg.dirDados, 'historico.json')) || { versao: 2, pontos: [] };
   const votos = Object.fromEntries(BR.candidatos.filter(c => !c.anulado).map(c => [c.numero, c.votos]));
-  const ponto = { minuto, totalizadas: BR.totalizadas, secoes: BR.secoes, votos };
+  // quem lidera em cada UF neste minuto: o front usa para listar as viradas
+  const lideres = {};
+  for (const uf of UFS) {
+    const c = finais.pres[uf] && finais.pres[uf].candidatos.find(x => !x.anulado);
+    if (c && c.votos) lideres[uf] = c.numero;
+  }
+  const ponto = { minuto, totalizadas: BR.totalizadas, secoes: BR.secoes, votos, lideres };
   const historico = { versao: 2, pontos: (hist.pontos || []).filter(p => p.minuto !== minuto).concat(ponto).sort((a, b) => a.minuto - b.minuto) };
   const erroHist = validarHistorico(historico);
   if (erroHist) throw new Error('historico inválido: ' + erroHist);

@@ -6,3 +6,11 @@ export const NOMES_UF = {
   RO: 'Rondônia', RR: 'Roraima', RS: 'Rio Grande do Sul', SC: 'Santa Catarina', SE: 'Sergipe', SP: 'São Paulo', TO: 'Tocantins',
 };
 export const LISTA_UFS = Object.keys(NOMES_UF);
+
+export const REGIOES = {
+  Norte: ['AC', 'AM', 'AP', 'PA', 'RO', 'RR', 'TO'],
+  Nordeste: ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+  'Centro-Oeste': ['DF', 'GO', 'MS', 'MT'],
+  Sudeste: ['ES', 'MG', 'RJ', 'SP'],
+  Sul: ['PR', 'RS', 'SC'],
+};
