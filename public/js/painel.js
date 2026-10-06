@@ -85,7 +85,7 @@ export function blocoCandidatos(u, limite = 6) {
     principais.map(c => candidato(c, total, maior)),
     demais.length ? h('details', null, h('summary', null, `Ver os outros ${demais.length} candidatos`),
       h('div', { classe: 'lista-cand interna' }, demais.map(c => candidato(c, total, maior)))) : null,
-    anulados.length ? h('p', { classe: 'sub' }, `Votos anulados (sub judice) não contam: ${anulados.map(c => `${nomeProprio(c.nome)} ${num(c.votos)}`).join(', ')}.`) : null,
+    anulados.length ? h('p', { classe: 'sub' }, `Votos sub judice (não elegem, mas entram na base do percentual, como no TSE): ${anulados.map(c => `${nomeProprio(c.nome)} ${num(c.votos)}`).join(', ')}.`) : null,
   );
 }
 
