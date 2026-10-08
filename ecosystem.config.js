@@ -4,7 +4,7 @@ module.exports = {
     {
       name: 'mapa-web',
       script: 'src/server.js',
-      env: { PORT: 3100, HOST: '127.0.0.1' },
+      env: { PORT: 3100, HOST: '0.0.0.0' },
       max_memory_restart: '400M',
     },
     {

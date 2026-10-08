@@ -2,7 +2,7 @@
 import { h, s, pct, hhmm, nomeProprio } from './fmt.js';
 import { corDoPartido } from './cores.js';
 
-const A = 250, M = { e: 44, d: 14, c: 12, b: 28 };
+const A = 200, M = { e: 38, d: 8, c: 10, b: 26 };
 
 /** `marca`: minuto da reprise, destacado com uma linha vertical. `aoEscolher(minuto)`: chamado ao clicar num ponto. */
 export function desenharGrafico(container, historico, cadastro, marca = null, aoEscolher = null) {

@@ -17,7 +17,7 @@ async function montarApp(t, url = 'http://localhost/') {
   const { window } = new JSDOM(html, { url, pretendToBeVisual: true });
   const erros = [], pedidos = [];
   Object.assign(globalThis, {
-    window, document: window.document, location: window.location, history: window.history,
+    window, document: window.document, location: window.location, history: window.history, localStorage: window.localStorage,
     URLSearchParams: window.URLSearchParams,
     SVGPathElement: window.SVGElement,
     DOMPoint: class { constructor(x, y) { this.x = x; this.y = y; } matrixTransform() { return this; } },
@@ -44,7 +44,7 @@ async function montarApp(t, url = 'http://localhost/') {
 
   await import(pathToFileURL(path.join(PUBLIC, 'js', 'main.js')).href);
   const $ = sel => window.document.querySelector(sel), $$ = sel => [...window.document.querySelectorAll(sel)];
-  for (let i = 0; i < 80 && !$('#painel h2'); i++) await espera(100);
+  for (let i = 0; i < 80 && !$('#placar .manchete'); i++) await espera(100);
   /** Espera uma condição ficar verdadeira (até ~6 s). */
   const ate = async (cond, rotulo = 'condição') => {
     for (let i = 0; i < 120; i++) { if (cond()) return; await espera(50); }

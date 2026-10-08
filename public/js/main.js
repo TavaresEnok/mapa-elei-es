@@ -3,7 +3,7 @@ import * as api from './api.js';
 import { Mapa } from './mapa.js';
 import { Busca } from './busca.js';
 import { desenharGrafico } from './grafico.js';
-import { painelUnidade, tabelaUfs, tabelaMunicipios, blocoCandidatos, blocoNumeros, placar, tabelaRegioes, listaViradas } from './painel.js';
+import { fichaUnidade, bancada, tabelaUfs, tabelaMunicipios, blocoCandidatos, blocoNumeros, placar, tabelaRegioes, listaViradas } from './painel.js';
 import { corDaUnidade, lider, unidadeDeMunicipio, unidadeDeRetrato, cadastroDe, apuradoPct, validos, porRegiao, viradas } from './dados.js';
 import { corDoPartido, intensidade } from './cores.js';
 import { h, pct, hhmm, nomeProprio } from './fmt.js';
@@ -114,19 +114,20 @@ function renderStatus() {
   ponto.className = 'ponto';
   if (!r) { texto.textContent = estado.erro ? 'Aguardando os primeiros dados do TSE…' : 'Carregando…'; return; }
   const real = r.cargos.presidente.br, concluida = real.totalizadas >= real.secoes;
-  if (emReprise()) texto.textContent = `Reprise · ${hhmm(estado.tempo.minuto)}`;
-  else if (estado.erro) { ponto.classList.add('erro'); texto.textContent = 'Sem conexão — exibindo os últimos dados recebidos'; }
+  const f = apuradoPct(br), secoes = `${pct(f, 2)} das seções`;
+  if (emReprise()) texto.textContent = `Reprise das ${hhmm(estado.tempo.minuto)}`;
+  else if (estado.erro) { ponto.classList.add('erro'); texto.textContent = 'Sem conexão. Exibindo os últimos dados recebidos'; }
   else {
     if (!concluida) ponto.classList.add('ao-vivo');
-    const quando = r.atualizadoTse.hora ? `dados do TSE de ${r.atualizadoTse.data} às ${r.atualizadoTse.hora}` : 'dados do TSE';
-    texto.textContent = `${concluida ? 'Apuração concluída' : 'Ao vivo'} · ${quando}`;
+    const hora = (r.atualizadoTse.hora || '').slice(0, 5);
+    texto.textContent = concluida ? 'Apuração concluída' : `Ao vivo, ${pct(f, 1)} das seções`;
+    texto.title = `${secoes} apuradas${hora ? `. Dados do TSE de ${r.atualizadoTse.data} às ${r.atualizadoTse.hora}` : ''}`;
   }
-  $('turno-rotulo').textContent = `2026 · ${r.turno}º turno`;
+  $('turno-rotulo').textContent = `2026, ${r.turno}º turno`;
   $('faixa-simulacao').hidden = !r.simulacao;
-  const f = apuradoPct(br);
-  $('progresso-valor').replaceChildren(pct(f, 2), h('span', { classe: 'detalhe' }, ` (${br.totalizadas.toLocaleString('pt-BR')} de ${br.secoes.toLocaleString('pt-BR')} seções)`));
   $('progresso-preenchimento').style.width = `${f * 100}%`;
   $('progresso-barra').setAttribute('aria-valuenow', Math.round(f * 100));
+  $('progresso-barra').setAttribute('aria-valuetext', `${secoes} apuradas (${br.totalizadas.toLocaleString('pt-BR')} de ${br.secoes.toLocaleString('pt-BR')})`);
 }
 
 function renderControles() {
@@ -152,7 +153,7 @@ function renderMapa() {
   mapa.pintar(uf => corDaUnidade(unidadeUf(uf)), estado.nivel === 'municipios' ? corDoMunicipio : null);
   mapa.selecionar(estado.uf, estado.mun);
   $('voltar').hidden = !estado.uf;
-  $('mapa-titulo').textContent = estado.mun ? `${nomeMunicipio(estado.uf, estado.mun)} · ${estado.uf}` : estado.uf ? NOMES_UF[estado.uf] : 'Brasil';
+  $('mapa-titulo').textContent = estado.mun ? `${nomeMunicipio(estado.uf, estado.mun)}, ${estado.uf}` : estado.uf ? NOMES_UF[estado.uf] : 'Brasil';
   $('svg-mapa').setAttribute('aria-label', `Mapa ${estado.uf ? 'de ' + NOMES_UF[estado.uf] : 'do Brasil'} colorido pelo candidato a ${estado.cargo} mais votado em cada ${estado.nivel === 'municipios' ? 'município' : 'estado'}`);
   renderAviso();
 }
@@ -175,61 +176,59 @@ function renderLegenda() {
 }
 
 function botaoVoltar(rotulo, aoClicar) { return h('button', { classe: 'botao-leve', type: 'button', onclick: aoClicar }, rotulo); }
+const aviso = texto => h('p', { classe: 'vazio-msg' }, texto);
 
+/** Cada recorte devolve { ficha: coluna da esquerda (sob o placar), contexto: coluna da direita }. */
 function painelMunicipio() {
-  const { uf, mun } = estado;
-  const nome = nomeMunicipio(uf, mun), partes = [];
-  if (emReprise()) {
-    const m = munNoRetrato(mun), c = m && cadastroPresidente().get(m.numero);
-    partes.push(h('div', { classe: 'painel-topo' }, h('h2', null, nome), h('p', { classe: 'sub' }, `${NOMES_UF[uf]} · às ${hhmm(estado.tempo.minuto)}`)));
-    partes.push(h('p', { classe: m ? '' : 'vazio-msg' }, m
-      ? `${nomeProprio(c ? c.nome : m.numero)} na frente por ${pct(m.margem, 1).replace('%', '')} pontos, com ${pct(m.apurado, 0)} das seções apuradas.`
-      : 'Sem votos apurados neste momento da apuração.'));
-  } else {
+  const { uf, mun } = estado, ficha = [], contexto = [];
+  if (!emReprise()) {
     const linha = linhaMun(uf, mun);
-    if (linha && linha.secoes) partes.push(...painelUnidade({ titulo: linha.nome, subtitulo: `${NOMES_UF[uf]} · ${CARGOS[estado.cargo]}`, unidade: unidadeDeMunicipio(linha, cadastro(uf), vagasDe(uf)) }));
-    else partes.push(h('div', { classe: 'painel-topo' }, h('h2', null, nome)), h('p', { classe: 'vazio-msg' }, estado.carregandoMun ? 'Carregando…' : 'Sem dados apurados para este município.'));
+    if (linha && linha.secoes) ficha.push(...fichaUnidade(unidadeDeMunicipio(linha, cadastro(uf), vagasDe(uf))));
+    else ficha.push(aviso(estado.carregandoMun ? 'Carregando…' : 'Sem dados apurados para este município.'));
   }
-  partes.push(botaoVoltar(`← ${NOMES_UF[uf]}`, () => selecionar({ uf })));
-  return partes;
+  contexto.push(botaoVoltar(`Voltar a ${NOMES_UF[uf]}`, () => selecionar({ uf })));
+  const linhas = linhasUf(uf);
+  if (linhas && !emReprise()) contexto.push(tabelaMunicipios([...linhas.values()].filter(l => l.secoes), cadastro(uf), id => selecionar({ uf, mun: id }), vagasDe(uf)));
+  return { ficha, contexto };
 }
 
 function painelEstado() {
-  const { uf } = estado, u = unidadeUf(uf), rotulo = CARGOS[estado.cargo], partes = [];
-  if (u) {
-    partes.push(...painelUnidade({ titulo: NOMES_UF[uf], subtitulo: emReprise() ? `${rotulo} · às ${hhmm(estado.tempo.minuto)}` : rotulo, unidade: u,
-      nota: estado.cargo === 'senador' && u.vagas ? `Eleição para ${u.vagas} vaga${u.vagas > 1 ? 's' : ''}; cada eleitor vota em até ${u.vagas}.` : '' }));
-  } else partes.push(h('div', { classe: 'painel-topo' }, h('h2', null, NOMES_UF[uf])), h('p', { classe: 'vazio-msg' }, `Não há disputa para ${rotulo.toLowerCase()} neste estado neste turno.`));
+  const { uf } = estado, u = unidadeUf(uf), ficha = [], contexto = [];
+  if (u) ficha.push(...fichaUnidade(u, estado.cargo === 'senador' && u.vagas ? `Eleição para ${u.vagas} vaga${u.vagas > 1 ? 's' : ''}; cada eleitor vota em até ${u.vagas}.` : ''));
   const linhas = linhasUf(uf);
-  if (u && linhas && !emReprise()) partes.push(tabelaMunicipios([...linhas.values()].filter(l => l.secoes), cadastro(uf), id => selecionar({ uf, mun: id }), vagasDe(uf)));
-  return partes;
+  if (u && linhas && !emReprise()) contexto.push(tabelaMunicipios([...linhas.values()].filter(l => l.secoes), cadastro(uf), id => selecionar({ uf, mun: id }), vagasDe(uf)));
+  else if (u) contexto.push(aviso(emReprise() ? 'A lista de municípios volta quando você sair da reprise.' : 'Carregando os municípios…'));
+  return { ficha, contexto };
 }
 
 function painelBrasil() {
-  const r = estado.resultado, partes = [];
+  const r = estado.resultado, ficha = [], contexto = [];
   const unidades = Object.fromEntries(LISTA_UFS.map(uf => [uf, unidadeUf(uf)]).filter(([, u]) => u));
   if (estado.cargo === 'presidente') {
-    partes.push(...painelUnidade({ titulo: 'Brasil', subtitulo: emReprise() ? `Presidente · às ${hhmm(estado.tempo.minuto)}` : 'Presidente', unidade: unidadeBrasil() }));
-    partes.push(listaViradas(viradas(estado.historico, emReprise() ? estado.tempo.minuto : Infinity), cadastroPresidente(), NOMES_UF));
-    partes.push(tabelaRegioes(porRegiao(unidades, REGIOES, cadastroPresidente())));
-    partes.push(tabelaUfs(unidades, uf => selecionar({ uf })));
+    ficha.push(...fichaUnidade(unidadeBrasil()));
     const ex = r.cargos.presidente.exterior;
-    if (ex && ex.secoes && !emReprise()) partes.push(h('details', null, h('summary', null, `Votos no exterior (${pct(apuradoPct(ex), 0)} apurado)`),
+    if (ex && ex.secoes && !emReprise()) ficha.push(h('details', null, h('summary', null, `Votos no exterior (${pct(apuradoPct(ex), 0)} apurado)`),
       h('div', { classe: 'lista-cand interna' }, blocoCandidatos(ex, 4), blocoNumeros(ex))));
+    contexto.push(listaViradas(viradas(estado.historico, emReprise() ? estado.tempo.minuto : Infinity), cadastroPresidente(), NOMES_UF));
+    contexto.push(tabelaRegioes(porRegiao(unidades, REGIOES, cadastroPresidente())));
   } else {
-    const definidos = Object.values(unidades).filter(u => u.situacao === 'eleito' || u.situacao === 'definido').length;
-    const segundo = Object.values(unidades).filter(u => u.situacao === 'segundo-turno').length;
-    partes.push(h('div', { classe: 'painel-topo' }, h('h2', null, PLURAL[estado.cargo]),
-      h('p', { classe: 'sub' }, `${definidos} de ${Object.keys(unidades).length} disputas definidas${segundo ? ` · ${segundo} vão ao 2º turno` : ''}. Escolha um estado no mapa ou na tabela.`)));
-    partes.push(tabelaUfs(unidades, uf => selecionar({ uf })));
+    ficha.push(bancada(unidades, estado.cargo === 'governador' ? 'Governadores eleitos por partido' : 'Senadores eleitos por partido'));
+    ficha.push(aviso('Escolha um estado no mapa ou na lista para ver os candidatos.'));
   }
-  return partes;
+  contexto.push(tabelaUfs(unidades, uf => selecionar({ uf })));
+  return { ficha, contexto };
 }
 
 function renderPainel() {
-  const alvo = $('painel');
-  if (!estado.resultado) { alvo.replaceChildren(h('p', { classe: 'vazio-msg' }, estado.erro ? 'Os primeiros resultados ainda não foram publicados. Esta página atualiza sozinha.' : 'Carregando…')); return; }
-  alvo.replaceChildren(...(estado.uf && estado.mun ? painelMunicipio() : estado.uf ? painelEstado() : painelBrasil()).filter(Boolean));
+  const ficha = $('ficha'), contexto = $('painel');
+  if (!estado.resultado) {
+    ficha.replaceChildren(aviso(estado.erro ? 'Os primeiros resultados ainda não foram publicados. Esta página atualiza sozinha.' : 'Carregando…'));
+    contexto.replaceChildren();
+    return;
+  }
+  const p = estado.uf && estado.mun ? painelMunicipio() : estado.uf ? painelEstado() : painelBrasil();
+  ficha.replaceChildren(...p.ficha.filter(Boolean));
+  contexto.replaceChildren(...p.contexto.filter(Boolean));
 }
 
 function renderTempo() {
@@ -242,28 +241,53 @@ function renderTempo() {
   cursor.max = ultimo; cursor.value = indice;
   const minuto = t.minutos[indice], br = unidadeBrasil();
   cursor.setAttribute('aria-valuetext', hhmm(minuto));
-  $('tempo-rotulo').textContent = `${hhmm(minuto)} · ${pct(apuradoPct(br), 1)} apurado`;
+  $('tempo-rotulo').textContent = `${hhmm(minuto)}, ${pct(apuradoPct(br), 1)} apurado`;
   $('tempo-vivo').hidden = t.minuto == null;
   $('tempo-tocar').textContent = t.tocando ? '❚❚' : '▶';
   $('tempo-tocar').setAttribute('aria-label', t.tocando ? 'Pausar' : 'Reproduzir a apuração');
 }
 
-/** Placar do recorte aberto (Brasil, estado ou município) para o cargo atual. */
+const DE_UF = { AC: 'do', AL: 'de', AM: 'do', AP: 'do', BA: 'da', CE: 'do', DF: 'do', ES: 'do', GO: 'de', MA: 'do', MG: 'de', MS: 'de', MT: 'de',
+  PA: 'do', PB: 'da', PE: 'de', PI: 'do', PR: 'do', RJ: 'do', RN: 'do', RO: 'de', RR: 'de', RS: 'do', SC: 'de', SE: 'de', SP: 'de', TO: 'do' };
+const emUf = uf => `${DE_UF[uf].replace('d', 'n').replace(/^ne$/, 'em')} ${NOMES_UF[uf]}`;   // "no Acre", "na Bahia", "em Goiás"
+
+/** Placar e manchete do recorte aberto (Brasil, estado ou município) para o cargo atual. */
 function renderPlacar() {
   const alvo = $('placar');
   if (!estado.resultado) { alvo.replaceChildren(); return; }
   const { uf, mun, cargo } = estado;
-  let u = null, local = 'Brasil', inteira = false;
+  const quando = emReprise() ? `, às ${hhmm(estado.tempo.minuto)}` : '';
+  if (!uf && cargo !== 'presidente') {   // visão nacional de um cargo estadual: resumo das 27 disputas
+    const us = Object.values(unidadesReais());
+    const definidos = us.filter(u => u.situacao === 'eleito' || u.situacao === 'definido').length;
+    const segundo = us.filter(u => u.situacao === 'segundo-turno').length;
+    const oQue = cargo === 'governador' ? 'governos estaduais' : 'disputas pelo Senado';
+    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${PLURAL[cargo]} no Brasil`),
+      h('h2', { classe: 'manchete' }, `${definidos} de ${us.length} ${oQue} já têm resultado${segundo ? `; ${segundo} vão ao 2º turno` : ''}`));
+    return;
+  }
+  let u = null, local = 'Brasil', preposicao = 'no Brasil', inteira = false;
   if (uf && mun) {
-    const linha = !emReprise() && linhaMun(uf, mun);
+    const nome = nomeMunicipio(uf, mun);
+    local = nome; preposicao = `em ${nome}`;
+    if (emReprise()) {
+      const m = munNoRetrato(mun), c = m && cadastroPresidente().get(m.numero);
+      alvo.replaceChildren(h('p', { classe: 'placar-local' }, `Presidente em ${nome} (${uf})${quando}`),
+        h('h2', { classe: 'manchete' }, m ? `${nomeProprio(c ? c.nome : m.numero)} na frente em ${nome} por ${pct(m.margem, 1).replace('%', '')} pontos` : `Ainda sem votos apurados em ${nome}`),
+        m ? h('p', { classe: 'placar-dif' }, `${pct(m.apurado, 0)} das seções apuradas naquele momento`) : null);
+      return;
+    }
+    const linha = linhaMun(uf, mun);
     u = linha && linha.secoes ? unidadeDeMunicipio(linha, cadastro(uf), vagasDe(uf)) : null;
-    local = `${nomeMunicipio(uf, mun)} (${uf})`;
-  } else if (uf) { u = unidadeUf(uf); local = NOMES_UF[uf]; inteira = cargo === 'governador'; }
-  else if (cargo === 'presidente') { u = unidadeBrasil(); inteira = true; }
-  alvo.hidden = !uf && cargo !== 'presidente';
-  if (alvo.hidden) return;
-  alvo.replaceChildren(...placar(u, { rotulo: h('span', null, h('strong', null, CARGOS[cargo]), ` em ${local}${emReprise() ? ` · às ${hhmm(estado.tempo.minuto)}` : ''}`),
-    decide2Turno: inteira && estado.resultado.turno === 1 }));
+  } else if (uf) { u = unidadeUf(uf); local = NOMES_UF[uf]; preposicao = emUf(uf); inteira = cargo !== 'presidente'; }
+  else { u = unidadeBrasil(); inteira = true; }
+  if (uf && !mun && !u) {
+    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${CARGOS[cargo]} ${emUf(uf)}`), h('h2', { classe: 'manchete' }, `Não há disputa para ${CARGOS[cargo].toLowerCase()} ${emUf(uf)} neste turno`));
+    return;
+  }
+  alvo.replaceChildren(...placar(u, { cargo, local, preposicao, inteira,
+    rotulo: `${CARGOS[cargo]} ${uf && mun ? `em ${local} (${uf})` : preposicao}${quando}`,
+    decide2Turno: inteira && cargo !== 'senador' && estado.resultado.turno === 1 }).filter(Boolean));
 }
 
 /** Clique no gráfico: leva a linha do tempo ao retrato mais próximo daquele minuto. */
@@ -274,7 +298,11 @@ function irParaMinuto(minuto) {
   minutos.forEach((m, i) => { if (Math.abs(m - minuto) < Math.abs(minutos[melhor] - minuto)) melhor = i; });
   pararReprise(); irParaIndice(melhor);
 }
-const redesenharGrafico = () => desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null, irParaMinuto);
+function redesenharGrafico() {
+  const temSerie = !!estado.historico && (estado.historico.pontos || []).length >= 2;
+  $('grafico-bloco').hidden = !temSerie;
+  if (temSerie) desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null, irParaMinuto);
+}
 
 async function baixarMapa() {
   try {
@@ -463,7 +491,21 @@ async function escolherFonte() {
   api.definirFonte(estado.fonte);
 }
 
+/** Tema escuro por padrão; a escolha da pessoa fica guardada no navegador. */
+function aplicarTema(tema) {
+  document.documentElement.dataset.tema = tema;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', tema === 'claro' ? '#f6f0e6' : '#1c1815');
+}
+function temaGuardado() { try { return localStorage.getItem('tema'); } catch { return null; } }
+function alternarTema() {
+  const novo = document.documentElement.dataset.tema === 'claro' ? 'escuro' : 'claro';
+  aplicarTema(novo);
+  try { localStorage.setItem('tema', novo); } catch { /* navegação privada */ }
+}
+
 async function iniciar() {
+  aplicarTema(temaGuardado() === 'claro' ? 'claro' : 'escuro');
   lerHash();
   try { [estado.geo] = await Promise.all([api.carregarGeo(), escolherFonte()]); }
   catch { $('painel').replaceChildren(h('p', { classe: 'vazio-msg' }, 'Não foi possível carregar o mapa. Recarregue a página.')); return; }
@@ -495,6 +537,7 @@ async function iniciar() {
   $('zoom-menos').addEventListener('click', () => mapa.zoom(1.4));
   $('zoom-reset').addEventListener('click', () => mapa.enquadrar(estado.uf));
   $('baixar-mapa').addEventListener('click', baixarMapa);
+  $('alternar-tema').addEventListener('click', alternarTema);
   $('turno-select').addEventListener('change', e => trocarFonte(e.target.value));
   $('tempo-cursor').addEventListener('input', e => { pararReprise(); irParaIndice(+e.target.value); });
   $('tempo-tocar').addEventListener('click', alternarReprise);

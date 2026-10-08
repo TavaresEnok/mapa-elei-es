@@ -16,4 +16,4 @@ export const corDoPartido = (sigla, numero = '') => {
 };
 
 /** Intensidade da cor no mapa: 0,34 (empate) → 1 (vantagem de 30 pontos ou mais). */
-export const intensidade = margem => 0.34 + 0.66 * Math.min(1, Math.max(0, margem) / 0.3);
+export const intensidade = margem => 0.42 + 0.58 * Math.min(1, Math.max(0, margem) / 0.3);

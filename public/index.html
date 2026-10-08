@@ -1,17 +1,19 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="escuro">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Mapa da Apuração 2026</title>
   <meta name="description" content="Acompanhe a apuração das eleições de 2026 em tempo real: presidente, governadores e senadores, estado por estado e município por município. Dados abertos do TSE.">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark light">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:title" content="Mapa da Apuração 2026">
   <meta property="og:description" content="Presidente, governadores e senadores em tempo real, estado por estado e município por município. Dados abertos do TSE.">
-  <meta name="theme-color" content="#1f5fbf">
+  <meta name="theme-color" content="#1c1815">
   <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/figtree.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/app.css">
   <script type="module" src="js/main.js"></script>
 </head>
@@ -20,64 +22,67 @@
 
   <header class="topo">
     <div class="marca">
-      <img src="img/favicon.svg" alt="" width="28" height="28">
-      <div>
-        <h1>Mapa da Apuração <span id="turno-rotulo">2026</span></h1>
-        <p class="fonte">Dados abertos do TSE · mapas do IBGE</p>
-      </div>
+      <img src="img/favicon.svg" alt="" width="26" height="26">
+      <h1>Apuração <span id="turno-rotulo">2026</span></h1>
     </div>
-    <label class="turno-escolha" id="turno-escolha" hidden>
-      <span class="so-leitor">Turno</span>
-      <select id="turno-select"></select>
-    </label>
-    <div class="status" role="status" aria-live="polite">
-      <span class="ponto" id="ponto-status" aria-hidden="true"></span>
-      <span id="texto-status">Carregando…</span>
+
+    <div class="cargos" role="tablist" aria-label="Cargo">
+      <button role="tab" class="cargo" data-cargo="presidente" aria-selected="true">Presidente</button>
+      <button role="tab" class="cargo" data-cargo="governador" aria-selected="false">Governadores</button>
+      <button role="tab" class="cargo" data-cargo="senador" aria-selected="false">Senado</button>
+    </div>
+
+    <div class="acoes">
+      <div class="status" role="status" aria-live="polite">
+        <span class="ponto" id="ponto-status" aria-hidden="true"></span>
+        <span id="texto-status">Carregando…</span>
+      </div>
+      <label class="turno-escolha" id="turno-escolha" hidden>
+        <span class="so-leitor">Turno</span>
+        <select id="turno-select"></select>
+      </label>
+      <button class="botao-busca" id="abrir-busca" type="button">
+        <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Buscar</span><kbd>Ctrl K</kbd>
+      </button>
+      <button class="botao-icone" id="alternar-tema" type="button" aria-label="Alternar entre tema escuro e claro" title="Tema claro ou escuro">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 2.5a7.5 7.5 0 1 0 0 15z" fill="currentColor"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
     </div>
   </header>
 
-  <p class="faixa-simulacao" id="faixa-simulacao" hidden><strong>Simulação.</strong> Estes números são uma reencenação para teste — não são o resultado oficial.</p>
+  <div class="progresso" role="progressbar" aria-label="Seções apuradas no Brasil" aria-valuemin="0" aria-valuemax="100" id="progresso-barra"><span id="progresso-preenchimento"></span></div>
 
-  <section class="progresso" aria-label="Andamento da apuração">
-    <div class="progresso-rotulos">
-      <span id="progresso-titulo">Seções apuradas no Brasil</span>
-      <strong id="progresso-valor">—</strong>
-    </div>
-    <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progresso-barra"><span id="progresso-preenchimento"></span></div>
-  </section>
+  <p class="faixa-simulacao" id="faixa-simulacao" hidden><strong>Simulação.</strong> Estes números são uma reencenação para teste e não são o resultado oficial.</p>
 
-  <section class="cartao placar" id="placar" aria-label="Placar" aria-live="polite"></section>
+  <main class="palco">
+    <section class="coluna historia" aria-label="Resultado do local aberto">
+      <div id="placar" aria-live="polite"></div>
+      <div id="ficha"></div>
+      <section class="grafico-bloco" id="grafico-bloco" hidden aria-label="Evolução da apuração">
+        <h3>Ao longo da apuração</h3>
+        <p class="sub">Presidente no Brasil, em % dos votos válidos. Clique para voltar àquele momento.</p>
+        <div id="grafico"></div>
+      </section>
+    </section>
 
-  <nav class="controles" aria-label="Opções do mapa">
-    <div class="grupo" role="tablist" aria-label="Cargo">
-      <button role="tab" class="aba" data-cargo="presidente" aria-selected="true">Presidente</button>
-      <button role="tab" class="aba" data-cargo="governador" aria-selected="false">Governador</button>
-      <button role="tab" class="aba" data-cargo="senador" aria-selected="false">Senador</button>
-    </div>
-    <div class="grupo" role="group" aria-label="Nível do mapa">
-      <button class="aba" data-nivel="estados" aria-pressed="true">Estados</button>
-      <button class="aba" data-nivel="municipios" aria-pressed="false">Municípios</button>
-    </div>
-    <button class="botao-busca" id="abrir-busca" type="button">
-      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      <span>Buscar cidade ou estado</span><kbd>Ctrl K</kbd>
-    </button>
-  </nav>
-
-  <main class="layout">
-    <section class="cartao mapa-cartao" aria-label="Mapa">
+    <section class="coluna-mapa" aria-label="Mapa">
       <div class="mapa-barra">
-        <button type="button" id="voltar" class="botao-leve" hidden>← Brasil</button>
-        <span id="mapa-titulo" class="mapa-titulo">Brasil</span>
-        <div class="zoom">
-          <button type="button" id="zoom-mais" class="botao-icone" aria-label="Aproximar">+</button>
-          <button type="button" id="zoom-menos" class="botao-icone" aria-label="Afastar">−</button>
-          <button type="button" id="zoom-reset" class="botao-icone" aria-label="Voltar ao mapa inteiro">⤢</button>
-          <button type="button" id="baixar-mapa" class="botao-icone" aria-label="Baixar o mapa em PNG" title="Baixar o mapa em PNG"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.8M8 10l3.5-3.2M3 13h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="voltar" class="botao-leve" hidden>Voltar ao Brasil</button>
+        <h2 id="mapa-titulo" class="mapa-titulo">Brasil</h2>
+        <div class="grupo" role="group" aria-label="Nível do mapa">
+          <button class="aba" data-nivel="estados" aria-pressed="true">Estados</button>
+          <button class="aba" data-nivel="municipios" aria-pressed="false">Municípios</button>
         </div>
       </div>
       <div class="mapa-area" id="mapa">
         <svg id="svg-mapa" role="img" aria-label="Mapa do Brasil colorido pelo candidato mais votado em cada local" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="zoom">
+          <button type="button" id="zoom-mais" class="botao-icone" aria-label="Aproximar">+</button>
+          <button type="button" id="zoom-menos" class="botao-icone" aria-label="Afastar">−</button>
+          <button type="button" id="zoom-reset" class="botao-icone" aria-label="Enquadrar o mapa inteiro" title="Enquadrar"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" id="baixar-mapa" class="botao-icone" aria-label="Baixar o mapa em PNG" title="Baixar o mapa em PNG"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 2v8m0 0L4.5 6.8M8 10l3.5-3.2M3 13h10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
         <div id="dica" class="dica" role="tooltip" hidden></div>
         <p id="mapa-aviso" class="mapa-aviso" hidden></p>
       </div>
@@ -90,23 +95,18 @@
       <div class="legenda" id="legenda" aria-label="Legenda"></div>
     </section>
 
-    <aside class="cartao painel" id="painel" aria-live="polite" aria-label="Detalhes"></aside>
+    <aside class="coluna contexto" id="painel" aria-label="Estados, regiões e municípios"></aside>
   </main>
 
-  <section class="cartao grafico-cartao" aria-label="Evolução da apuração">
-    <h2>Evolução da apuração — presidente, Brasil <small>(% dos votos válidos)</small></h2>
-    <div id="grafico"></div>
-  </section>
-
   <footer class="rodape">
-    <p>Resultados: <a href="https://resultados.tse.jus.br/" rel="noopener">Tribunal Superior Eleitoral</a>. Malhas territoriais: <a href="https://www.ibge.gov.br/" rel="noopener">IBGE</a>. Os números são parciais enquanto a apuração não chegar a 100% das seções e podem mudar a qualquer momento; o resultado oficial é o do TSE.</p>
+    <p>Resultados do <a href="https://resultados.tse.jus.br/" rel="noopener">Tribunal Superior Eleitoral</a> e malhas do <a href="https://www.ibge.gov.br/" rel="noopener">IBGE</a>. Os números são parciais até 100% das seções; o resultado oficial é o do TSE.</p>
   </footer>
 
   <dialog id="busca" aria-label="Buscar">
     <form method="dialog" class="busca-form" id="busca-form">
       <input id="busca-campo" type="search" autocomplete="off" spellcheck="false" placeholder="Digite o nome de uma cidade ou estado" aria-label="Buscar cidade ou estado" aria-controls="busca-lista">
       <ul id="busca-lista" role="listbox"></ul>
-      <p class="busca-dica">↑ ↓ para navegar · Enter para abrir · Esc para fechar</p>
+      <p class="busca-dica">Setas para navegar, Enter para abrir, Esc para fechar</p>
     </form>
   </dialog>
 

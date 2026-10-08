@@ -21,13 +21,13 @@ test('front: reprise da apuração (simulação)', { skip: !temSimulacao, timeou
   });
 
   await t.test('voltar no tempo repinta o mapa e o painel com o retrato daquele minuto', async () => {
-    const final = pintados(), votosFinais = $('#painel .candidato .valor span').textContent;
+    const final = pintados(), votosFinais = $('#ficha .candidato .valor span').textContent;
     $('#tempo-cursor').value = '1';
     evento($('#tempo-cursor'), 'input');
     await ate(() => /Reprise/.test($('#texto-status').textContent), 'modo reprise');
     assert.ok(pintados() < final, `menos municípios pintados no começo (${pintados()} < ${final})`);
-    assert.notStrictEqual($('#painel .candidato .valor span').textContent, votosFinais);
-    assert.match($('#painel .sub').textContent, /às \d\d:\d\d/);
+    assert.notStrictEqual($('#ficha .candidato .valor span').textContent, votosFinais);
+    assert.match($('#placar .placar-local').textContent, /às \d\d:\d\d/);
     assert.strictEqual($('#tempo-vivo').hidden, false);
   });
 

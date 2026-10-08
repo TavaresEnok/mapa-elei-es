@@ -5,7 +5,8 @@ Painel web de apuração ao vivo das eleições gerais de 2026: presidente, gove
 - Mapa por estados ou municípios, para os três cargos, com zoom, arraste e ficha de cada local
 - Fotos oficiais dos candidatos, disputa frente a frente, tabelas por estado e por município
 - Linha do tempo: volte a qualquer minuto da apuração e veja o mapa daquele momento
-- Busca de cidade ou estado (`Ctrl+K`), modo claro/escuro, funciona no celular
+- Manchete que conta a notícia do local aberto, placar com "ainda pode virar?", viradas e regiões
+- Busca de cidade ou estado (`Ctrl+K`), tema escuro (padrão) ou claro, download do mapa em PNG, funciona no celular
 - 1º e 2º turnos lado a lado (cada um na sua pasta de dados)
 
 Todo o código, o visual e o formato dos dados são deste repositório. As únicas fontes externas são **dados públicos oficiais**:
@@ -15,7 +16,7 @@ Todo o código, o visual e o formato dos dados são deste repositório. As únic
 | Resultados, candidatos, partidos, fotos | API aberta do TSE (`resultados.tse.jus.br`), sem chave nem cadastro |
 | Malhas dos municípios e estados | API de Malhas do IBGE (`servicodados.ibge.gov.br`) |
 
-O navegador só fala com o próprio servidor (a política de segurança de conteúdo bloqueia qualquer outra origem); não há bibliotecas, fontes ou scripts de terceiros.
+O navegador só fala com o próprio servidor (a política de segurança de conteúdo bloqueia qualquer outra origem); não há bibliotecas nem scripts de terceiros. As duas fontes tipográficas, Fraunces e Figtree, são de licença aberta (SIL OFL 1.1) e ficam hospedadas aqui mesmo, em `public/fonts/`, com as respectivas licenças.
 
 ## Como funciona
 
@@ -40,7 +41,7 @@ npm run updater      # coleta ao vivo em loop (Ctrl+C encerra)
 npm test             # testes (node:test + jsdom)
 ```
 
-Em produção, com PM2: `npm run pm2` (`ecosystem.config.js`: `mapa-web` + `mapa-tse`).
+Em produção, com PM2: `npm run pm2` (`ecosystem.config.js`: `mapa-web` + `mapa-tse`). O `ecosystem.config.js` sobe o servidor em `0.0.0.0:3100`, acessível pela rede; para HTTPS e domínio próprio, coloque um proxy reverso (Caddy, nginx) na frente e volte o `HOST` para `127.0.0.1`.
 
 Servidor: `PORT` (3100), `HOST` (`127.0.0.1`; `0.0.0.0` para expor na rede), `PUBLIC_DIR`, `LOG=1`.
 
@@ -64,7 +65,7 @@ Abra `http://127.0.0.1:3100/?fonte=simulacao`. Os dados simulados ficam em `publ
 
 ```
 public/
-  index.html, css/app.css, img/favicon.svg
+  index.html, css/app.css, img/favicon.svg, fonts/ (Fraunces e Figtree, OFL)
   js/            main (orquestra) · mapa (SVG, zoom) · painel · grafico · busca · dados · cores · fmt · api · ufs
   data/
     geo/           malhas do IBGE (versionado)

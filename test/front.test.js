@@ -17,15 +17,19 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
   });
 
   await t.test('painel do Brasil: disputa, candidatos com foto e tabela de estados', () => {
-    assert.ok($('#painel h2').textContent.startsWith('Brasil'));
+    assert.match($('#placar .manchete').textContent, /2º turno|lidera|vence|eleito/);
     assert.ok($('#placar .disputa-barra'), 'placar com a barra de disputa');
     assert.match($('#placar .veredito').textContent, /2º turno|Ainda pode virar|Não vira mais|concluída/);
     assert.ok($('#painel').textContent.includes('Por região'));
-    assert.ok($('#painel .candidato .nome'));
-    assert.match($('#painel .avatar img').getAttribute('src'), /^data\/fotos\/\d+\.jpeg$/);
+    assert.strictEqual(document.documentElement.dataset.tema, 'escuro', 'escuro por padrão');
+    $('#alternar-tema').click();
+    assert.strictEqual(document.documentElement.dataset.tema, 'claro');
+    $('#alternar-tema').click();
+    assert.ok($('#ficha .candidato .nome'));
+    assert.match($('#ficha .avatar img').getAttribute('src'), /^data\/fotos\/\d+\.jpeg$/);
     assert.strictEqual($$('#painel tr[data-chave]').length, 27);
-    assert.match($('#progresso-valor').textContent, /%/);
-    assert.match($('#texto-status').textContent, /TSE/);
+    assert.match($('#progresso-barra').getAttribute('aria-valuetext'), /% das seções/);
+    assert.match($('#texto-status').textContent, /Apuração concluída|Ao vivo/);
     assert.strictEqual($('#faixa-simulacao').hidden, true, 'dados reais não mostram a faixa de simulação');
     assert.ok(!pedidos.some(p => p.includes('/municipios/')), 'municípios só são baixados quando necessários');
   });
@@ -33,7 +37,7 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
   await t.test('selecionar um estado abre a ficha e a tabela de municípios', async () => {
     evento($('#painel tr[data-chave="SP"]'), 'click');
     await ate(() => $$('#painel tr[data-chave]').length > 600, 'municípios de SP');
-    assert.match($('#painel h2').textContent, /São Paulo/);
+    assert.match($('#placar .placar-local').textContent, /em São Paulo/);
     assert.strictEqual($('#voltar').hidden, false);
     assert.strictEqual($$('#svg-mapa .u.fora').length, 26);
   });
@@ -41,8 +45,8 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
   await t.test('município mostra ficha própria', async () => {
     evento($('#painel tr[data-chave]'), 'click');
     await espera(80);
-    assert.match($('#mapa-titulo').textContent, /· SP$/);
-    assert.ok($('#painel .candidato'));
+    assert.match($('#mapa-titulo').textContent, /, SP$/);
+    assert.ok($('#ficha .candidato'));
   });
 
   await t.test('nível municípios pinta o país; governador e senador também têm municípios', async () => {
@@ -51,18 +55,21 @@ test('front: mapa, painel, cargos e seleção', { skip: !existe('data/turno1/res
     $('[data-cargo="governador"]').click();
     assert.strictEqual($('[data-nivel="municipios"]').disabled, false);
     await ate(() => pedidos.some(p => p.includes('municipios/governador/SP.json')) && pintados('#svg-mapa .m') > 5500, 'municípios de governador');
-    await ate(() => $('#painel .candidato'), 'ficha do município para governador');
+    await ate(() => $('#ficha .candidato'), 'ficha do município para governador');
     $('#voltar').click(); await espera(50);
-    assert.strictEqual($('#painel h2').textContent, 'Governadores');
+    assert.match($('#placar .manchete').textContent, /governos estaduais já têm resultado/);
+    assert.ok($('#ficha .bancada li'), 'eleitos por partido');
     $('[data-cargo="senador"]').click(); await espera(50);
-    assert.strictEqual($('#painel h2').textContent, 'Senadores');
+    assert.match($('#placar .manchete').textContent, /disputas pelo Senado/);
     evento($('#painel tr[data-chave="SP"]'), 'click'); await espera(50);
-    assert.match($('#painel').textContent, /vagas/);
+    assert.match($('#ficha').textContent, /vagas/);
+    assert.match($('#placar .manchete').textContent, /Senado por São Paulo|Senado em São Paulo/);
     assert.match($('#placar .veredito').textContent, /Última vaga/);
     // percentuais na mesma base do TSE (inclui sub judice): RJ, governador, líder com 49,27%
     $('[data-cargo="governador"]').click(); $('#voltar').click(); await espera(30);
     evento($('#painel tr[data-chave="RJ"]'), 'click'); await espera(60);
-    assert.strictEqual($('#painel .candidato .valor strong').textContent, '49,27%');
+    assert.strictEqual($('#ficha .candidato .valor strong').textContent, '49,27%');
+    assert.match($('#placar .manchete').textContent, /vão ao 2º turno/);
   });
 
   await t.test('busca encontra município sem acento', async () => {

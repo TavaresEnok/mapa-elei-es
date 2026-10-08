@@ -55,23 +55,51 @@ export function veredito(u, { decide2Turno = false } = {}) {
   return h('p', { classe: 'veredito' }, partes);
 }
 
-/** Placar do recorte aberto: os dois primeiros frente a frente, a marca dos 50% e o veredito. */
-export function placar(u, { rotulo, decide2Turno = false }) {
+const CARGO_ELEITO = { presidente: 'presidente', governador: 'governador' };
+const lista = nomes => (nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}` : nomes[0] || '');
+
+/**
+ * A notícia do recorte aberto, em uma frase. `local` é o nome do lugar; `preposicao` é como ele entra na
+ * frase ("no Brasil", "em São Paulo"); `inteira` diz se a unidade é a disputa toda daquele cargo.
+ */
+export function manchete(u, { cargo, local, preposicao, inteira = false }) {
+  const v = u ? [...validos(u)].sort((a, b) => b.votos - a.votos) : [];
+  const total = u ? totalValidos(u) : 0;
+  if (!total || !v.length) return `Ainda sem votos apurados ${preposicao}`;
+  const nome = c => nomeProprio(c.nome), fim = apuradoPct(u) >= 1;
+  const a = v[0], fa = pct(a.votos / total, 1);
+  if ((u.vagas || 1) > 1) {
+    const dupla = lista(v.slice(0, u.vagas).map(nome));
+    if (inteira && u.situacao === 'definido') return `${dupla} são eleitos para o Senado por ${local}`;
+    return fim ? `${dupla} são os mais votados para o Senado ${preposicao}` : `${dupla} lideram a disputa pelo Senado ${preposicao}`;
+  }
+  if (inteira && u.situacao === 'eleito') return `${nome(a)} é eleito ${CARGO_ELEITO[cargo] || cargo}${cargo === 'governador' ? ` de ${local}` : ''} no 1º turno`;
+  if (inteira && u.situacao === 'segundo-turno' && v[1]) return `${nome(a)} e ${nome(v[1])} vão ao 2º turno`;
+  return fim ? `${nome(a)} vence ${preposicao} com ${fa}` : `${nome(a)} lidera ${preposicao} com ${fa}`;
+}
+
+/** Placar do recorte aberto: a manchete, os dois primeiros frente a frente, a marca dos 50% e o veredito. */
+export function placar(u, { cargo, rotulo, local, preposicao, inteira = false, decide2Turno = false }) {
+  const titulo = h('h2', { classe: 'manchete' }, manchete(u, { cargo, local, preposicao, inteira }));
+  const onde = h('p', { classe: 'placar-local' }, rotulo);
   const l = u && lider(u, 1);
-  if (!l || !l.segundo) return [h('p', { classe: 'placar-vazio' }, rotulo, ' · ainda sem votos apurados')];
+  if (!l || !l.segundo) return [onde, titulo];
   const a = l.candidato, b = l.segundo, fa = a.votos / l.total, fb = b.votos / l.total;
-  const lado = (c, classe) => h('div', { classe: 'placar-cand ' + classe }, avatar(c, 'avatar grande'),
-    h('div', null, h('strong', null, nomeProprio(c.nome)), h('span', { estilo: { color: corDoPartido(c.partido, c.numero) } }, `${c.partido} ${c.numero}`)));
-  const valor = (c, f) => h('div', { classe: 'placar-valor' }, h('strong', null, pct(f, 1)), h('span', null, `${num(c.votos)} votos`));
+  const lado = (c, f, classe) => h('div', { classe: 'duelo-lado ' + classe, estilo: { '--cor': corDoPartido(c.partido, c.numero) } },
+    h('div', { classe: 'duelo-quem' }, avatar(c, 'avatar grande'),
+      h('div', null, h('strong', null, nomeProprio(c.nome)), h('span', { classe: 'partido' }, `${c.partido} ${c.numero}`))),
+    h('div', { classe: 'duelo-numero' }, pct(f, 2).replace('%', ''), h('small', null, '%')),
+    h('div', { classe: 'duelo-votos' }, `${num(c.votos)} votos`));
   return [
-    h('div', { classe: 'placar-linha' }, lado(a, 'esq'), h('div', { classe: 'placar-centro' }, valor(a, fa), valor(b, fb)), lado(b, 'dir')),
+    onde, titulo,
+    h('div', { classe: 'duelo' }, lado(a, fa, 'esq'), lado(b, fb, 'dir')),
     h('div', { classe: 'disputa-barra', role: 'img', 'aria-label': `${nomeProprio(a.nome)} ${pct(fa, 1)}, ${nomeProprio(b.nome)} ${pct(fb, 1)} dos votos válidos` },
       h('i', { estilo: { width: `${fa * 100}%`, background: corDoPartido(a.partido, a.numero) } }),
       h('i', { classe: 'outros', estilo: { width: `${Math.max(0, 1 - fa - fb) * 100}%` } }),
       h('i', { estilo: { width: `${fb * 100}%`, background: corDoPartido(b.partido, b.numero) } }),
       h('span', { classe: 'meio', title: '50% dos votos válidos' })),
-    h('div', { classe: 'placar-rodape' }, h('span', { classe: 'placar-local' }, rotulo), veredito(u, { decide2Turno }),
-      h('span', { classe: 'placar-dif' }, `Diferença de ${pct(Math.abs(fa - fb), 1).replace('%', '')} pts · ${pct(apuradoPct(u), 1)} das seções`)),
+    veredito(u, { decide2Turno }),
+    h('p', { classe: 'placar-dif' }, `Diferença de ${pct(Math.abs(fa - fb), 2).replace('%', '')} pontos, com ${pct(apuradoPct(u), 1)} das seções apuradas`),
   ];
 }
 
@@ -103,23 +131,14 @@ export function blocoNumeros(u) {
   );
 }
 
-const SELO_SITUACAO = { eleito: 'Definido', definido: 'Definido', 'segundo-turno': 'Vai ao 2º turno', parcial: '1 vaga definida' };
-
-function cabecalho(titulo, subtitulo, u, nota) {
-  const selo = u && SELO_SITUACAO[u.situacao];
-  return h('div', { classe: 'painel-topo' },
-    h('h2', null, titulo, selo ? h('span', { classe: u.situacao === 'segundo-turno' ? 'selo neutro' : 'selo' }, selo) : null),
-    h('p', { classe: 'sub' }, subtitulo, u ? ` · ${pct(apuradoPct(u), 1)} das seções apuradas` : ''),
-    nota ? h('p', { classe: 'sub' }, nota) : null);
+/** Candidatos e números do recorte aberto (o título fica por conta da manchete). */
+export function fichaUnidade(unidade, nota) {
+  return [h('h3', null, 'Todos os candidatos'), nota ? h('p', { classe: 'sub' }, nota) : null, blocoCandidatos(unidade), blocoNumeros(unidade)];
 }
 
-export function painelUnidade({ titulo, subtitulo, unidade, nota }) {
-  return [cabecalho(titulo, subtitulo, unidade, nota), blocoCandidatos(unidade), blocoNumeros(unidade)];
-}
-
-function tabela(titulo, colunas, linhas) {
+function tabela(titulo, colunas, linhas, classe = '') {
   return h('div', null, h('h3', null, titulo),
-    h('div', { classe: 'rolagem' }, h('table', { classe: 'tabela-ufs' },
+    h('div', { classe: 'rolagem' }, h('table', { classe: 'tabela-ufs ' + classe },
       h('thead', null, h('tr', null, colunas.map(t => h('th', { scope: 'col' }, t)))), h('tbody', null, linhas))));
 }
 
@@ -128,8 +147,8 @@ function linhaTabela(chave, rotuloAria, aoEscolher, celulas) {
     onkeydown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aoEscolher(); } } }, celulas.map(c => h('td', null, c)));
 }
 
-const celulaLider = l => h('span', { classe: 'cel-lider' },
-  h('i', { classe: 'amostra', estilo: { background: corDoPartido(l.candidato.partido, l.candidato.numero) } }), nomeProprio(l.candidato.nome));
+const celulaLider = l => h('span', { classe: 'cel-lider', title: nomeProprio(l.candidato.nome) },
+  h('i', { classe: 'amostra', estilo: { background: corDoPartido(l.candidato.partido, l.candidato.numero) } }), h('span', null, nomeProprio(l.candidato.nome)));
 
 /** Tabela com uma linha por UF: mais votado, percentual e andamento. */
 export function tabelaUfs(unidadesPorUf, aoEscolher) {
@@ -137,7 +156,7 @@ export function tabelaUfs(unidadesPorUf, aoEscolher) {
     const u = unidadesPorUf[uf], l = u && lider(u);
     return linhaTabela(uf, `Abrir ${NOMES_UF[uf]}`, () => aoEscolher(uf),
       [uf, l ? celulaLider(l) : (u ? '—' : 'sem disputa'), l ? pct(l.candidato.votos / l.total, 1) : '', u ? pct(apuradoPct(u), 0) : '']);
-  }));
+  }), 'estados');
 }
 
 /** Tabela dos municípios de uma UF, do maior eleitorado para o menor. */
@@ -152,9 +171,9 @@ export function tabelaMunicipios(linhas, cadastro, aoEscolher, vagas = 1) {
 
 /** Uma linha por região: quem lidera, com quanto e quantos votos ainda faltam. */
 export function tabelaRegioes(regioes) {
-  return tabela('Por região', ['Região', 'Mais votado', '%', 'Faltam'], Object.entries(regioes).map(([nome, u]) => {
+  return tabela('Por região', ['Região', 'Mais votado', '%', 'Votos a apurar'], Object.entries(regioes).map(([nome, u]) => {
     const l = lider(u), p = panorama(u);
-    return h('tr', null, [nome, l ? celulaLider(l) : '—', l ? pct(l.candidato.votos / l.total, 1) : '', p && !p.concluido ? `${compacto(p.faltam)} votos` : (p ? 'concluído' : '')].map(c => h('td', null, c)));
+    return h('tr', null, [nome, l ? celulaLider(l) : '—', l ? pct(l.candidato.votos / l.total, 1) : '', p && !p.concluido ? compacto(p.faltam) : ''].map(c => h('td', null, c)));
   }));
 }
 
@@ -165,5 +184,21 @@ export function listaViradas(viradas, cadastro, nomesUf, limite = 6) {
     const c = cadastro.get(v.para) || { nome: v.para, partido: '' };
     return h('li', null, h('time', null, hhmm(v.minuto)), h('span', null, h('strong', null, nomesUf[v.uf]), ' virou para ',
       h('i', { classe: 'amostra', estilo: { background: corDoPartido(c.partido, v.para) } }), ' ', nomeProprio(c.nome)));
+  })));
+}
+
+/** Quantos eleitos cada partido já tem nas disputas estaduais (governos ou vagas no Senado). */
+export function bancada(unidadesPorUf, titulo) {
+  const porPartido = new Map();
+  for (const u of Object.values(unidadesPorUf)) {
+    for (const c of u.candidatos) if (c.resultado === 'eleito') porPartido.set(c.partido, { n: (porPartido.get(c.partido)?.n || 0) + 1, numero: c.numero });
+  }
+  if (!porPartido.size) return null;
+  const ordem = [...porPartido.entries()].sort((a, b) => b[1].n - a[1].n || a[0].localeCompare(b[0]));
+  const maior = ordem[0][1].n;
+  return h('div', null, h('h3', null, titulo), h('ul', { classe: 'bancada' }, ordem.map(([partido, x]) => {
+    const cor = corDoPartido(partido, x.numero);
+    return h('li', null, h('span', { classe: 'nome-partido' }, h('i', { classe: 'amostra', estilo: { background: cor } }), partido),
+      h('span', { classe: 'trilho' }, h('i', { estilo: { width: `${(x.n / maior) * 100}%`, background: cor } })), h('strong', null, x.n));
   })));
 }

@@ -140,7 +140,7 @@ export class Mapa {
       if (el.tagName !== 'text') c.setAttribute('vector-effect', 'non-scaling-stroke');
     });
     const altura = Math.round(largura * h / w);
-    const fundo = getComputedStyle(svg.parentElement).backgroundColor;
+    const fundo = getComputedStyle(document.body).backgroundColor;
     clone.removeAttribute('class'); clone.removeAttribute('style'); clone.removeAttribute('id');
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     clone.setAttribute('width', largura); clone.setAttribute('height', altura);
