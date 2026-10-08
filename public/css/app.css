@@ -206,6 +206,7 @@ details > summary:hover { color: var(--tinta); }
 .tabela-ufs th { text-align: left; color: var(--tenue); font-weight: 500; font-size: .76rem; padding: 4px 6px 6px; position: sticky; top: 0; background: var(--superficie); }
 .tabela-ufs td { padding: 7px 6px; border-top: 1px solid var(--linha); font-variant-numeric: tabular-nums; }
 .tabela-ufs th:nth-child(n+3), .tabela-ufs td:nth-child(n+3) { text-align: right; white-space: nowrap; }
+.tabela-ufs .ja-eleito { opacity: .6; }
 .tabela-ufs tr[data-chave] { cursor: pointer; }
 .tabela-ufs tr[data-chave]:hover td, .tabela-ufs tr[data-chave]:focus-visible td { background: var(--relevo); }
 .tabela-ufs .cel-lider { display: flex; align-items: center; gap: 7px; white-space: nowrap; }

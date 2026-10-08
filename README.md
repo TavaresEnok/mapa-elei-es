@@ -39,6 +39,7 @@ Requer Node 20+. Não há dependências de runtime (o `jsdom` é só para os tes
 npm start            # servidor em http://127.0.0.1:3100
 npm run updater      # coleta ao vivo em loop (Ctrl+C encerra)
 npm test             # testes (node:test + jsdom)
+npm run checar       # conferência: TSE, dados locais, disco e processos
 ```
 
 Em produção, com PM2: `npm run pm2` (`ecosystem.config.js`: `mapa-web` + `mapa-tse`). O `ecosystem.config.js` sobe o servidor em `0.0.0.0:3100`, acessível pela rede; para HTTPS e domínio próprio, coloque um proxy reverso (Caddy, nginx) na frente e volte o `HOST` para `127.0.0.1`.
@@ -56,6 +57,16 @@ npm run simular                      # ~4 minutos; use -- --sim-minutos 1 para a
 ```
 
 Abra `http://127.0.0.1:3100/?fonte=simulacao`. Os dados simulados ficam em `public/data/simulacao/`, nunca se misturam com os reais, e a tela mostra uma faixa de aviso.
+
+### Roteiro para o 2º turno (25 de outubro de 2026)
+
+O sistema troca de turno sozinho; não é preciso reiniciar nada no dia.
+
+- **Antes:** `npm run checar -- --turno 2` confere os códigos da eleição no TSE (6258 federal, 6260 estadual), os dados locais, o disco e os processos. Para ver a tela do 2º turno funcionando, `npm run ensaio` monta um 2º turno fictício a partir do 1º (só os dois mais votados de cada disputa) em `public/data/simulacao/`; abra `/?fonte=simulacao`. O ensaio declara um "vencedor" que não existe: a tela e o PNG exportado avisam, mas não deixe esses dados no ar. `npm run simular -- --turno 1` volta a simulação para a reencenação do 1º turno real.
+- **À meia-noite do dia 25** (horário de Brasília) o updater passa a consultar as eleições do 2º turno. Enquanto o TSE não publica, ele registra "aguardando" e a tela continua no 1º turno, avisando a data do 2º.
+- **Quando o TSE publicar** (as urnas fecham às 17h), o updater grava `public/data/turno2/` e atualiza `indice.json`; as páginas abertas mudam para o 2º turno na consulta seguinte, sem recarregar. O 1º turno continua disponível no seletor do topo.
+- **Na tela do 2º turno:** não há aba do Senado; em governadores, só os estados em disputa são apurados e os demais aparecem em tom apagado com o eleito do 1º turno.
+- **Durante a noite:** `npm run checar` e `GET /saude` mostram quantas seções já entraram e há quantos segundos os dados mudaram; `pm2 logs mapa-tse` mostra cada rodada. Se o TSE mudar os códigos na última hora, reinicie o updater com `--ele-federal N --ele-estadual N`.
 
 ### Geometria
 

@@ -11,7 +11,7 @@ module.exports = {
       // sem --turno: usa o 1º turno até 24/10/2026 e troca sozinho para o 2º a partir de 25/10
       name: 'mapa-tse',
       script: 'src/updater/index.js',
-      args: '--interval 45',
+      args: '--interval 30',
       max_memory_restart: '600M',
       restart_delay: 5000,
     },

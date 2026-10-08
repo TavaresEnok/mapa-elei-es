@@ -18,6 +18,8 @@ const estado = {
   fonte: 'turno1', turnos: [],
   cargo: 'presidente', nivel: 'estados', uf: null, mun: null,
   resultado: null, historico: null, geo: null,
+  anterior: null,           // resultado do 1º turno, consultado quando a tela mostra o 2º
+  fonteFixa: false,         // true se a pessoa escolheu a fonte (URL ou seletor): não troca sozinha
   linhas: { presidente: {}, governador: {}, senador: {} },       // cargo → UF → Map(id → linha de município)
   linhasDe: { presidente: 0, governador: 0, senador: 0 },        // `gerado` do resultado a que as linhas correspondem
   corMun: { presidente: new Map(), governador: new Map(), senador: new Map() },
@@ -37,6 +39,11 @@ const unidadesReais = () => (estado.resultado ? estado.resultado.cargos[estado.c
 const cadastroPresidente = () => cadastroDe(estado.resultado && estado.resultado.cargos.presidente.br);
 /** Quem são os candidatos do cargo atual numa UF (para presidente, os mesmos no país todo). */
 const cadastro = uf => (estado.cargo === 'presidente' ? cadastroPresidente() : cadastroDe(unidadesReais()[uf]));
+/** No 2º turno, a unidade do 1º para o cargo atual (quem já foi eleito onde não há mais disputa). */
+const unidadeAnterior = uf => (estado.anterior && estado.resultado && estado.resultado.turno === 2 && !emReprise() ? estado.anterior.cargos[estado.cargo].uf[uf] : undefined);
+const anteriores = () => Object.fromEntries(LISTA_UFS.map(uf => [uf, unidadeAnterior(uf)]).filter(([, u]) => u));
+const temSenado = () => !estado.resultado || Object.keys(estado.resultado.cargos.senador.uf).length > 0;
+const dataPorExtenso = iso => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }) : '');
 const vagasDe = uf => (unidadesReais()[uf] && unidadesReais()[uf].vagas) || 1;
 
 function unidadeUf(uf) {
@@ -92,10 +99,12 @@ function garantirMunicipios(cargo = estado.cargo) {
   if (pendentes[cargo]) return pendentes[cargo];
   estado.carregandoMun = true; renderAviso();
   const gerado = r.gerado, fonte = estado.fonte;
-  pendentes[cargo] = Promise.allSettled(LISTA_UFS.map(uf => api.carregarMunicipios(cargo, uf))).then(resultados => {
+  // só as UFs que têm disputa para o cargo (no 2º turno, poucos estados elegem governador)
+  const ufs = LISTA_UFS.filter(uf => cargo === 'presidente' || r.cargos[cargo].uf[uf]);
+  pendentes[cargo] = Promise.allSettled(ufs.map(uf => api.carregarMunicipios(cargo, uf))).then(resultados => {
     delete pendentes[cargo];
     if (fonte !== estado.fonte) return;
-    resultados.forEach((x, i) => { if (x.status === 'fulfilled') estado.linhas[cargo][LISTA_UFS[i]] = new Map(x.value.municipios.map(m => [m.id, m])); });
+    resultados.forEach((x, i) => { if (x.status === 'fulfilled') estado.linhas[cargo][ufs[i]] = new Map(x.value.municipios.map(m => [m.id, m])); });
     estado.linhasDe[cargo] = gerado;
     recalcularCores(cargo);
     estado.carregandoMun = Object.keys(pendentes).length > 0;
@@ -124,14 +133,21 @@ function renderStatus() {
     texto.title = `${secoes} apuradas${hora ? `. Dados do TSE de ${r.atualizadoTse.data} às ${r.atualizadoTse.hora}` : ''}`;
   }
   $('turno-rotulo').textContent = `2026, ${r.turno}º turno`;
-  $('faixa-simulacao').hidden = !r.simulacao;
+  const faixa = $('faixa-simulacao');
+  faixa.hidden = !r.simulacao;
+  if (r.simulacao) faixa.replaceChildren(h('strong', null, r.ensaio ? 'Ensaio do 2º turno.' : 'Simulação.'),
+    r.ensaio ? ' A eleição ainda não aconteceu: estes números são fictícios, montados a partir do 1º turno, e não indicam vencedor.'
+      : ' Estes números são uma reencenação para teste e não são o resultado oficial.');
   $('progresso-preenchimento').style.width = `${f * 100}%`;
   $('progresso-barra').setAttribute('aria-valuenow', Math.round(f * 100));
   $('progresso-barra').setAttribute('aria-valuetext', `${secoes} apuradas (${br.totalizadas.toLocaleString('pt-BR')} de ${br.secoes.toLocaleString('pt-BR')})`);
 }
 
 function renderControles() {
-  document.querySelectorAll('[data-cargo]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.cargo === estado.cargo)));
+  document.querySelectorAll('[data-cargo]').forEach(b => {
+    b.setAttribute('aria-selected', String(b.dataset.cargo === estado.cargo));
+    if (b.dataset.cargo === 'senador') b.hidden = !temSenado();   // no 2º turno não há eleição para o Senado
+  });
   document.querySelectorAll('[data-nivel]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.nivel === estado.nivel)));
   const escolha = $('turno-escolha'), sel = $('turno-select');
   escolha.hidden = estado.turnos.length < 2;
@@ -150,7 +166,12 @@ function renderAviso() {
 function renderMapa() {
   if (!mapa || !estado.resultado) return;
   mapa.definirNivel(estado.nivel);
-  mapa.pintar(uf => corDaUnidade(unidadeUf(uf)), estado.nivel === 'municipios' ? corDoMunicipio : null);
+  mapa.pintar(uf => {
+    const cor = corDaUnidade(unidadeUf(uf));
+    if (cor) return cor;
+    const antes = corDaUnidade(unidadeAnterior(uf));
+    return antes ? { cor: antes.cor, opacidade: 0.22 } : null;
+  }, estado.nivel === 'municipios' ? corDoMunicipio : null);
   mapa.selecionar(estado.uf, estado.mun);
   $('voltar').hidden = !estado.uf;
   $('mapa-titulo').textContent = estado.mun ? `${nomeMunicipio(estado.uf, estado.mun)}, ${estado.uf}` : estado.uf ? NOMES_UF[estado.uf] : 'Brasil';
@@ -172,7 +193,8 @@ function renderLegenda() {
     estado.cargo === 'presidente' ? `${nomeProprio(c.nome)} (${c.partido})` : c.partido));
   const escala = h('span', { classe: 'escala' }, 'vantagem pequena',
     h('i', { classe: 'degrade' }), 'grande');
-  alvo.replaceChildren(...itens, h('span', null, amostra('var(--vazio)'), 'Sem dados'), escala);
+  const nota = Object.keys(anteriores()).length ? h('span', null, 'Tom apagado: decidido no 1º turno') : null;
+  alvo.replaceChildren(...[...itens, h('span', null, amostra('var(--vazio)'), 'Sem dados'), nota, escala].filter(Boolean));
 }
 
 function botaoVoltar(rotulo, aoClicar) { return h('button', { classe: 'botao-leve', type: 'button', onclick: aoClicar }, rotulo); }
@@ -195,6 +217,7 @@ function painelMunicipio() {
 function painelEstado() {
   const { uf } = estado, u = unidadeUf(uf), ficha = [], contexto = [];
   if (u) ficha.push(...fichaUnidade(u, estado.cargo === 'senador' && u.vagas ? `Eleição para ${u.vagas} vaga${u.vagas > 1 ? 's' : ''}; cada eleitor vota em até ${u.vagas}.` : ''));
+  else if (unidadeAnterior(uf)) ficha.push(...fichaUnidade(unidadeAnterior(uf), 'Resultado do 1º turno, em 4 de outubro.'));
   const linhas = linhasUf(uf);
   if (u && linhas && !emReprise()) contexto.push(tabelaMunicipios([...linhas.values()].filter(l => l.secoes), cadastro(uf), id => selecionar({ uf, mun: id }), vagasDe(uf)));
   else if (u) contexto.push(aviso(emReprise() ? 'A lista de municípios volta quando você sair da reprise.' : 'Carregando os municípios…'));
@@ -212,10 +235,10 @@ function painelBrasil() {
     contexto.push(listaViradas(viradas(estado.historico, emReprise() ? estado.tempo.minuto : Infinity), cadastroPresidente(), NOMES_UF));
     contexto.push(tabelaRegioes(porRegiao(unidades, REGIOES, cadastroPresidente())));
   } else {
-    ficha.push(bancada(unidades, estado.cargo === 'governador' ? 'Governadores eleitos por partido' : 'Senadores eleitos por partido'));
+    ficha.push(bancada([...Object.values(unidades), ...Object.values(anteriores())], estado.cargo === 'governador' ? 'Governadores eleitos por partido' : 'Senadores eleitos por partido'));
     ficha.push(aviso('Escolha um estado no mapa ou na lista para ver os candidatos.'));
   }
-  contexto.push(tabelaUfs(unidades, uf => selecionar({ uf })));
+  contexto.push(tabelaUfs(unidades, uf => selecionar({ uf }), anteriores()));
   return { ficha, contexto };
 }
 
@@ -257,12 +280,14 @@ function renderPlacar() {
   if (!estado.resultado) { alvo.replaceChildren(); return; }
   const { uf, mun, cargo } = estado;
   const quando = emReprise() ? `, às ${hhmm(estado.tempo.minuto)}` : '';
+  const prefixo = estado.resultado.simulacao ? 'Simulação. ' : '';   // dado fictício sempre identificado junto da manchete
   if (!uf && cargo !== 'presidente') {   // visão nacional de um cargo estadual: resumo das 27 disputas
     const us = Object.values(unidadesReais());
     const definidos = us.filter(u => u.situacao === 'eleito' || u.situacao === 'definido').length;
     const segundo = us.filter(u => u.situacao === 'segundo-turno').length;
-    const oQue = cargo === 'governador' ? 'governos estaduais' : 'disputas pelo Senado';
-    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${PLURAL[cargo]} no Brasil`),
+    const segundoTurno = estado.resultado.turno === 2;
+    const oQue = cargo !== 'governador' ? 'disputas pelo Senado' : segundoTurno ? 'governos em disputa no 2º turno' : 'governos estaduais';
+    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${prefixo}${PLURAL[cargo]} no Brasil`),
       h('h2', { classe: 'manchete' }, `${definidos} de ${us.length} ${oQue} já têm resultado${segundo ? `; ${segundo} vão ao 2º turno` : ''}`));
     return;
   }
@@ -272,7 +297,7 @@ function renderPlacar() {
     local = nome; preposicao = `em ${nome}`;
     if (emReprise()) {
       const m = munNoRetrato(mun), c = m && cadastroPresidente().get(m.numero);
-      alvo.replaceChildren(h('p', { classe: 'placar-local' }, `Presidente em ${nome} (${uf})${quando}`),
+      alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${prefixo}Presidente em ${nome} (${uf})${quando}`),
         h('h2', { classe: 'manchete' }, m ? `${nomeProprio(c ? c.nome : m.numero)} na frente em ${nome} por ${pct(m.margem, 1).replace('%', '')} pontos` : `Ainda sem votos apurados em ${nome}`),
         m ? h('p', { classe: 'placar-dif' }, `${pct(m.apurado, 0)} das seções apuradas naquele momento`) : null);
       return;
@@ -282,11 +307,15 @@ function renderPlacar() {
   } else if (uf) { u = unidadeUf(uf); local = NOMES_UF[uf]; preposicao = emUf(uf); inteira = cargo !== 'presidente'; }
   else { u = unidadeBrasil(); inteira = true; }
   if (uf && !mun && !u) {
-    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${CARGOS[cargo]} ${emUf(uf)}`), h('h2', { classe: 'manchete' }, `Não há disputa para ${CARGOS[cargo].toLowerCase()} ${emUf(uf)} neste turno`));
+    const antes = unidadeAnterior(uf), eleito = antes && antes.candidatos.find(c => c.resultado === 'eleito');
+    alvo.replaceChildren(h('p', { classe: 'placar-local' }, `${prefixo}${CARGOS[cargo]} ${emUf(uf)}`),
+      h('h2', { classe: 'manchete' }, eleito ? `${NOMES_UF[uf]} decidiu no 1º turno: ${nomeProprio(eleito.nome)} é o governador eleito`
+        : `Não há disputa para ${CARGOS[cargo].toLowerCase()} ${emUf(uf)} neste turno`));
     return;
   }
-  alvo.replaceChildren(...placar(u, { cargo, local, preposicao, inteira,
-    rotulo: `${CARGOS[cargo]} ${uf && mun ? `em ${local} (${uf})` : preposicao}${quando}`,
+  alvo.replaceChildren(...placar(u, { cargo, local, preposicao, inteira, turno: estado.resultado.turno,
+    dataSegundoTurno: dataPorExtenso(estado.resultado.segundoTurno),
+    rotulo: `${prefixo}${CARGOS[cargo]} ${uf && mun ? `em ${local} (${uf})` : preposicao}${quando}`,
     decide2Turno: inteira && cargo !== 'senador' && estado.resultado.turno === 1 }).filter(Boolean));
 }
 
@@ -300,13 +329,13 @@ function irParaMinuto(minuto) {
 }
 function redesenharGrafico() {
   const temSerie = !!estado.historico && (estado.historico.pontos || []).length >= 2;
-  $('grafico-bloco').hidden = !temSerie;
+  $('grafico-bloco').hidden = !temSerie || estado.cargo !== 'presidente';
   if (temSerie) desenharGrafico($('grafico'), estado.historico, cadastroPresidente(), emReprise() ? estado.tempo.minuto : null, irParaMinuto);
 }
 
 async function baixarMapa() {
   try {
-    const blob = await mapa.exportarPng();
+    const blob = await mapa.exportarPng(1600, estado.resultado && estado.resultado.simulacao ? 'SIMULAÇÃO: números fictícios' : '');
     const link = h('a', { href: URL.createObjectURL(blob), download: `mapa-${estado.cargo}-${(estado.uf || 'brasil').toLowerCase()}.png` });
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
@@ -397,7 +426,7 @@ async function trocarNivel(nivel) {
 async function trocarFonte(fonte) {
   if (fonte === estado.fonte) return;
   pararReprise();
-  Object.assign(estado, { fonte, resultado: null, historico: null, erro: false });
+  Object.assign(estado, { fonte, resultado: null, historico: null, anterior: null, erro: false });
   estado.linhas = { presidente: {}, governador: {}, senador: {} };
   estado.linhasDe = { presidente: 0, governador: 0, senador: 0 };
   for (const m of Object.values(estado.corMun)) m.clear();
@@ -444,7 +473,11 @@ function mostrarDica(alvo, evento) {
     const l = u && lider(u);
     filhos.push(h('h3', null, titulo), h('div', { classe: 'sub' }, sub));
     if (l) filhos.push(...linhasCandidatos(u, l), rodape(`${pct(apuradoPct(u), 0)} das seções apuradas`));
-    else filhos.push(rodape(u === undefined && alvo.tipo === 'uf' ? 'Sem disputa neste turno' : estado.carregandoMun ? 'Carregando…' : 'Sem dados apurados ainda'));
+    else {
+      const antes = alvo.tipo === 'uf' && unidadeAnterior(alvo.uf), eleito = antes && antes.candidatos.find(c => c.resultado === 'eleito');
+      filhos.push(rodape(eleito ? `Decidido no 1º turno: ${nomeProprio(eleito.nome)} foi eleito`
+        : u === undefined && alvo.tipo === 'uf' ? 'Sem disputa neste turno' : estado.carregandoMun ? 'Carregando…' : 'Sem dados apurados ainda'));
+    }
   }
   dica.replaceChildren(...filhos);
   dica.hidden = false;
@@ -466,6 +499,8 @@ async function atualizar() {
     estado.erro = false;
     if (!estado.resultado || r.gerado !== estado.resultado.gerado) {
       estado.resultado = r;
+      if (estado.cargo === 'senador' && !temSenado()) estado.cargo = 'presidente';
+      if (r.turno === 2 && !estado.anterior) estado.anterior = await api.carregarResultadoDe('turno1').catch(() => null);
       await Promise.all([
         api.carregarHistorico().then(x => { estado.historico = x; }).catch(() => {}),
         carregarLinhaDoTempo(),
@@ -480,6 +515,19 @@ async function atualizar() {
     renderStatus();
     if (!estado.resultado) renderPainel();
   }
+  conferirTurno();
+}
+
+/** Quando o updater publica um turno novo, a tela passa a mostrá-lo sozinha (a menos que a pessoa tenha escolhido outro). */
+async function conferirTurno() {
+  if (estado.fonte === 'simulacao') return;
+  let indice;
+  try { indice = await api.carregarIndice(); } catch { return; }
+  const turnos = indice.turnos || [1];
+  const mudou = turnos.length !== estado.turnos.length;
+  estado.turnos = turnos;
+  if (mudou) renderControles();
+  if (mudou && !estado.fonteFixa && estado.fonte !== `turno${indice.atual}`) trocarFonte(`turno${indice.atual}`);
 }
 
 async function escolherFonte() {
@@ -488,6 +536,7 @@ async function escolherFonte() {
   try { indice = await api.carregarIndice(); } catch { /* sem índice: assume o 1º turno */ }
   estado.turnos = (indice && indice.turnos) || [1];
   estado.fonte = pedido === 'simulacao' ? 'simulacao' : /^turno[12]$/.test(pedido || '') ? pedido : `turno${(indice && indice.atual) || 1}`;
+  estado.fonteFixa = !!pedido;
   api.definirFonte(estado.fonte);
 }
 
@@ -538,7 +587,7 @@ async function iniciar() {
   $('zoom-reset').addEventListener('click', () => mapa.enquadrar(estado.uf));
   $('baixar-mapa').addEventListener('click', baixarMapa);
   $('alternar-tema').addEventListener('click', alternarTema);
-  $('turno-select').addEventListener('change', e => trocarFonte(e.target.value));
+  $('turno-select').addEventListener('change', e => { estado.fonteFixa = true; trocarFonte(e.target.value); });
   $('tempo-cursor').addEventListener('input', e => { pararReprise(); irParaIndice(+e.target.value); });
   $('tempo-tocar').addEventListener('click', alternarReprise);
   $('tempo-vivo').addEventListener('click', () => irParaIndice(Infinity));

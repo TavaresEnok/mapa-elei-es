@@ -127,7 +127,7 @@ export class Mapa {
    * Gera um PNG do mapa como está na tela. O SVG depende do CSS da página, então cada forma do clone
    * recebe os valores já calculados (cor, traço, fonte) antes de ser desenhada num canvas.
    */
-  async exportarPng(largura = 1600) {
+  async exportarPng(largura = 1600, marca = '') {
     const { svg } = this, { w, h } = this.vb;
     const clone = svg.cloneNode(true);
     const originais = svg.querySelectorAll('path, text, line'), copias = clone.querySelectorAll('path, text, line');
@@ -152,6 +152,11 @@ export class Mapa {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = fundo; ctx.fillRect(0, 0, largura, altura);
     ctx.drawImage(img, 0, 0, largura, altura);
+    if (marca) {   // dados simulados nunca saem sem identificação
+      ctx.font = `700 ${Math.round(largura / 34)}px sans-serif`;
+      ctx.fillStyle = 'rgba(226, 120, 60, .95)';
+      ctx.fillText(marca, largura * 0.03, altura - largura * 0.03);
+    }
     return new Promise(ok => canvas.toBlob(ok, 'image/png'));
   }
 

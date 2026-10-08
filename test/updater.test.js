@@ -9,7 +9,7 @@ const { validarUnidade, validarMunicipio, validarResultado, validarHistorico } =
 const { aplicar, arquivoDe, titulo, carregarTabelas, caminho } = require('../src/updater/municipios');
 const { retrato } = require('../src/updater/linha-do-tempo');
 const { ehJpeg } = require('../src/updater/fotos');
-const { SimProvider, sorteio } = require('../src/updater/providers/simulado');
+const { SimProvider, sorteio, cenarioSegundoTurno, repartir } = require('../src/updater/providers/simulado');
 const { makeConfig, turnoAutomatico, ALL, UFS } = require('../src/updater/config');
 
 const doc = (extra = {}) => ({
@@ -195,4 +195,20 @@ test('ciclo completo com o provider simulado grava um feed válido (integração
   assert.strictEqual(ler('linha-do-tempo/indice.json').minutos.length, 1);
   for (const cargo of ['presidente', 'governador', 'senador']) assert.ok(ler(`municipios/${cargo}/SP.json`).municipios.length > 600, cargo);
   assert.ok(!fs.existsSync(path.join(DADOS, '..', '..', 'indice-nao-deve-existir')), 'simulação não mexe no índice real');
+});
+
+test('ensaio do 2º turno: só dois candidatos, votos conservados, sem Senado', { skip: !temTurno1 }, () => {
+  assert.deepStrictEqual(repartir({ 13: 40, 22: 60, 70: 10 }, ['22', '13']), { 22: 66, 13: 44 });
+  assert.deepStrictEqual(repartir({ 70: 9 }, ['22', '13']), { 22: 5, 13: 4 }, 'sem votos nos dois, divide ao meio');
+  const real = JSON.parse(fs.readFileSync(path.join(DADOS, 'turno1', 'resultado.json'), 'utf8'));
+  const { final } = cenarioSegundoTurno(real, { pres: {}, gov: {}, sen: {} });
+  const br = final.cargos.presidente.br;
+  assert.strictEqual(br.candidatos.length, 2);
+  const soma = u => u.candidatos.filter(c => !c.anulado).reduce((t, c) => t + c.votos, 0);
+  assert.strictEqual(soma(br), soma(real.cargos.presidente.br), 'nenhum voto some nem aparece');
+  assert.strictEqual(br.candidatos.filter(c => c.resultado === 'eleito').length, 1);
+  assert.deepStrictEqual(Object.keys(final.cargos.senador.uf), []);
+  const emDisputa = Object.keys(real.cargos.governador.uf).filter(uf => real.cargos.governador.uf[uf].situacao === 'segundo-turno');
+  assert.deepStrictEqual(Object.keys(final.cargos.governador.uf).sort(), emDisputa.sort());
+  assert.strictEqual(validarResultado({ ...final, versao: 3, gerado: 1, minuto: 1 }, { turno: 2 }), null);
 });

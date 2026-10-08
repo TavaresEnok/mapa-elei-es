@@ -12,7 +12,7 @@ const PUBLIC = path.join(__dirname, '..', '..', 'public');
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const existe = rel => fs.existsSync(path.join(PUBLIC, rel));
 
-async function montarApp(t, url = 'http://localhost/') {
+async function montarApp(t, url = 'http://localhost/', raiz = PUBLIC) {
   const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8').replace(/<script[^>]*><\/script>/, '');
   const { window } = new JSDOM(html, { url, pretendToBeVisual: true });
   const erros = [], pedidos = [];
@@ -26,7 +26,7 @@ async function montarApp(t, url = 'http://localhost/') {
     fetch: async caminho => {
       const rel = String(caminho).split('?')[0];
       pedidos.push(rel);
-      const arq = path.join(PUBLIC, rel);
+      const arq = path.join(raiz, rel);
       if (!fs.existsSync(arq)) return { ok: false, status: 404, json: async () => ({}) };
       return { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(arq, 'utf8')) };
     },
@@ -54,4 +54,4 @@ async function montarApp(t, url = 'http://localhost/') {
   return { window, $, $$, espera, ate, evento, erros, pedidos };
 }
 
-module.exports = { montarApp, existe, espera };
+module.exports = { montarApp, existe, espera, PUBLIC };

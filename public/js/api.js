@@ -12,6 +12,7 @@ export const fotoUrl = sq => `data/fotos/${sq}.jpeg`;
 
 export const carregarIndice = () => json('data/indice.json');
 export const carregarResultado = () => json(base + 'resultado.json');
+export const carregarResultadoDe = fonte => json(`data/${fonte}/resultado.json`);
 export const carregarHistorico = () => json(base + 'historico.json');
 export const carregarMunicipios = (cargo, uf) => json(`${base}municipios/${cargo}/${uf}.json`);
 export const carregarLinhaDoTempo = () => json(base + 'linha-do-tempo/indice.json');

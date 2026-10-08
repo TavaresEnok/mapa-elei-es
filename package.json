@@ -16,7 +16,9 @@
     "simular": "node src/updater/index.js --simular",
     "geo": "node scripts/build-geo.js",
     "pm2": "pm2 start ecosystem.config.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "checar": "node scripts/checar.js",
+    "ensaio": "node src/updater/index.js --simular --turno 2"
   },
   "devDependencies": {
     "jsdom": "^30.1.2"

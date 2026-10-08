@@ -53,7 +53,7 @@ function criarContexto(args) {
   const ctx = { cfg, provider: cfg.simular ? new SimProvider(cfg) : new TseProvider(cfg), written: 0, first: true };
   if (!cfg.dryRun) fs.mkdirSync(cfg.dirDados, { recursive: true });
   ctx.state = cfg.simular ? {} : loadState(ctx);
-  console.log(`Atualizador de apuração · ${cfg.simular ? 'SIMULAÇÃO a partir do ' : ''}${cfg.turno}º turno · eleições ${cfg.eleFed}/${cfg.eleEst}${cfg.dryRun ? ' · dry-run' : ''}`);
+  console.log(`Atualizador de apuração · ${cfg.simular ? (ctx.provider.ensaio ? 'ENSAIO (fictício) do ' : 'SIMULAÇÃO a partir do ') : ''}${cfg.turno}º turno · eleições ${cfg.eleFed}/${cfg.eleEst}${cfg.dryRun ? ' · dry-run' : ''}`);
   console.log(`saída: ${cfg.dirDados} · intervalo ${cfg.interval}s · municípios ${cfg.munis ? 'sim' : 'não'}\n`);
   return ctx;
 }

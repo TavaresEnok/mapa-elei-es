@@ -23,8 +23,12 @@ class SimProvider {
   constructor(cfg) {
     this.cfg = cfg;
     this.inicio = Date.now();
-    const origem = path.join(cfg.out, `turno${cfg.turno}`);
+    // Sem resultado real do 2º turno (ou seja, antes dele acontecer), ensaia-se um 2º turno fictício
+    // montado a partir do 1º: só os dois mais votados de cada disputa que não se decidiu.
+    let origem = path.join(cfg.out, `turno${cfg.turno}`);
     this.final = loadJson(path.join(origem, 'resultado.json'));
+    const ensaio = !this.final && cfg.turno === 2;
+    if (ensaio) { origem = path.join(cfg.out, 'turno1'); this.final = loadJson(path.join(origem, 'resultado.json')); }
     if (!this.final) throw new Error(`a simulação precisa do resultado real em ${origem} (rode o updater normal uma vez)`);
     this.linhas = { pres: {}, gov: {}, sen: {} };
     for (const cargo of Object.keys(CARGOS)) {
@@ -34,6 +38,8 @@ class SimProvider {
       }
     }
     if (!Object.keys(this.linhas.pres).length) throw new Error(`faltam os municípios de presidente em ${origem}`);
+    this.ensaio = ensaio;
+    if (ensaio) ({ final: this.final, linhas: this.linhas } = cenarioSegundoTurno(this.final, this.linhas));
     this.porId = {};
     for (const cargo of Object.keys(CARGOS)) {
       this.porId[cargo] = new Map();
@@ -74,7 +80,7 @@ class SimProvider {
 
   unidadeFinal(cargo, UF) {
     const c = this.final.cargos[CARGOS[cargo].nome];
-    return UF === 'BR' ? c.br : UF === 'ZZ' ? c.exterior : c.uf && c.uf[UF];
+    return c && (UF === 'BR' ? c.br : UF === 'ZZ' ? c.exterior : c.uf && c.uf[UF]);
   }
 
   async cm() {
@@ -131,10 +137,55 @@ class SimProvider {
   }
 }
 
+/** Mantém só os dois números de `dupla` num mapa de votos, repartindo os demais na proporção entre eles. */
+function repartir(votos, dupla) {
+  const [a, b] = dupla, va = votos[a] || 0, vb = votos[b] || 0;
+  const outros = Object.entries(votos).reduce((t, [n, v]) => (n === a || n === b ? t : t + v), 0);
+  const paraA = va + vb ? Math.round(outros * va / (va + vb)) : Math.round(outros / 2);
+  return { [a]: va + paraA, [b]: vb + outros - paraA };
+}
+
+/**
+ * 2º turno fictício a partir do resultado do 1º: presidente (se não houve eleito) e os governos que foram
+ * ao 2º turno, cada um só com os dois mais votados; os votos dos demais candidatos são repartidos entre
+ * eles. Não há Senado. Serve só para ensaiar a tela e o pipeline — não é previsão de resultado.
+ */
+function cenarioSegundoTurno(final1, linhas1) {
+  const duplaDe = u => u.candidatos.filter(c => !c.anulado).slice(0, 2).map(c => c.numero);
+  const converter = (u, dupla, vencedor) => {
+    const votos = repartir(Object.fromEntries(u.candidatos.filter(c => !c.anulado).map(c => [c.numero, c.votos])), dupla);
+    const candidatos = dupla.map(n => ({ ...u.candidatos.find(c => c.numero === n), votos: votos[n], resultado: n === vencedor ? 'eleito' : null }))
+      .sort((a, b) => b.votos - a.votos);
+    const { vagas, ...resto } = u;
+    return { ...resto, situacao: 'eleito', candidatos };
+  };
+  const vencedorDe = (u, dupla) => { const v = repartir(Object.fromEntries(u.candidatos.filter(c => !c.anulado).map(c => [c.numero, c.votos])), dupla); return v[dupla[0]] >= v[dupla[1]] ? dupla[0] : dupla[1]; };
+  const linhasDe = (lista, dupla) => lista.map(m => { const { anulados, ...resto } = m; return { ...resto, votos: repartir(m.votos, dupla) }; });
+
+  const cargos = { presidente: { uf: {} }, governador: { uf: {} }, senador: { uf: {} } };
+  const linhas = { pres: {}, gov: {}, sen: {} };
+  const p = final1.cargos.presidente;
+  if (p.br.situacao === 'segundo-turno') {
+    const dupla = duplaDe(p.br), vencedor = vencedorDe(p.br, dupla);
+    cargos.presidente.br = converter(p.br, dupla, vencedor);
+    cargos.presidente.exterior = converter(p.exterior, dupla, vencedor);
+    for (const uf of Object.keys(p.uf)) cargos.presidente.uf[uf] = converter(p.uf[uf], dupla, vencedor);
+    for (const uf of Object.keys(linhas1.pres)) linhas.pres[uf] = linhasDe(linhas1.pres[uf], dupla);
+  }
+  for (const [uf, u] of Object.entries(final1.cargos.governador.uf)) {
+    if (u.situacao !== 'segundo-turno') continue;
+    const dupla = duplaDe(u);
+    cargos.governador.uf[uf] = converter(u, dupla, vencedorDe(u, dupla));
+    if (linhas1.gov[uf]) linhas.gov[uf] = linhasDe(linhas1.gov[uf], dupla);
+  }
+  if (!cargos.presidente.br) throw new Error('o 1º turno elegeu o presidente: não há 2º turno nacional para ensaiar');
+  return { final: { ...final1, turno: 2, cargos }, linhas };
+}
+
 function somar(a, b) {
   a.secoes += b.secoes; a.totalizadas += b.totalizadas; a.eleitorado += b.eleitorado;
   for (const k of CONTADORES) a[k] += b[k];
   for (const n in b.votos) a.votos[n] = (a.votos[n] || 0) + b.votos[n];
 }
 
-module.exports = { SimProvider, sorteio };
+module.exports = { SimProvider, sorteio, cenarioSegundoTurno, repartir };

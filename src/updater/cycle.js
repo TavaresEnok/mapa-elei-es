@@ -7,7 +7,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { UFS, ALL, EXTERIOR, CARGOS } = require('./config');
+const { UFS, ALL, EXTERIOR, CARGOS, ELEICAO } = require('./config');
 const { loadJson, writeJson, pool, log, warn } = require('./util');
 const { unidadeDe, minutoDe } = require('./transform');
 const { validarUnidade, validarMunicipio, validarResultado, validarHistorico } = require('./validate');
@@ -138,6 +138,9 @@ async function runCycle(ctx) {
     },
   };
   if (cfg.simular) resultado.simulacao = true;
+  if (provider.ensaio) resultado.ensaio = true;   // 2º turno fictício, montado a partir do 1º
+  // no 1º turno, avisa o front da data do 2º quando alguma disputa não se decidiu
+  if (cfg.turno === 1 && [BR, ...Object.values(finais.gov)].some(u => u.situacao === 'segundo-turno')) resultado.segundoTurno = ELEICAO[2].dia;
   const erroResultado = validarResultado(resultado, cfg);
   if (erroResultado) throw new Error('resultado inválido: ' + erroResultado + ' — nada foi gravado');
 
